@@ -1,5 +1,7 @@
 # Nosql概述
+
 ## 为什么要用Nosql
+
 >  1、单机MySQL的年代！
 
 ![image-20200722164417649](https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200722164417649.png)
@@ -96,14 +98,15 @@ Nosql
 > 了解：3V+3高
 
 大数据时代的3V：主要是描述问题的
+
 1. 海量Volume
 2. 多样Variety
 3. 实时Velocity
-大数据时代的3高：主要是对程序的要求
-1. 高并发
-2. 高可扩
-3. 高性能
-真正在公司中的实践：NoSQL + RDBMS 一起使用才是最强的，阿里巴巴的架构演进 !
+   大数据时代的3高：主要是对程序的要求
+4. 高并发
+5. 高可扩
+6. 高性能
+   真正在公司中的实践：NoSQL + RDBMS 一起使用才是最强的，阿里巴巴的架构演进 !
 
 ## NoSQL的四大分类
 
@@ -189,7 +192,7 @@ c91b615aebc1        redis:6.0.5         "docker-entrypoint.s…"   44 minutes ag
 [root@centos8 ~]# docker exec -it c91b615aebc1 /bin/bash
 # 到bin目录下启动，如果有密码。auth "密码"
 root@c91b615aebc1:/bin# redis-cli -p 6666
-127.0.0.1:6666> auth "cxy0809."
+127.0.0.1:6666> auth "密码"
 OK
 127.0.0.1:6666> set name 2
 OK
@@ -201,6 +204,7 @@ OK
 
 
 ## 测试性能
+
 redis-benchmark 是一个压力测试工具！
 官方自带的性能测试工具！
 redis-benchmark 命令参数！
@@ -246,4 +250,269 @@ Redis 为什么单线程还这么快？
 的！多次读写都是在一个CPU上的，在内存情况下，这个就是最佳的方案！
 
 # 五大数据类型
+
+> 官网文档
+
+![image-20200723154920895](https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200723154920895.png)
+
+>后面我们使用SpringBoot。Jedis，所有的方法，就是这些命令！
+>单点登录
+
+## Redis-key
+
+```bash
+127.0.0.1:6666> keys * # 查看所有key
+(empty array)
+127.0.0.1:6666> set name cxy # 存入一个字符串类型
+OK
+127.0.0.1:6666> keys *
+1) "name"
+127.0.0.1:6666> set age 1
+OK
+127.0.0.1:6666> keys *
+1) "age"
+2) "name"
+127.0.0.1:6666> exists name # 判断当前key是否存在
+(integer) 1
+127.0.0.1:6666> exists name1
+(integer) 0
+127.0.0.1:6666> move name 1 # 移除当前key
+(integer) 1
+127.0.0.1:6666> keys *
+1) "age"
+127.0.0.1:6666> set name cuixiaoyan
+OK
+127.0.0.1:6666> keys *
+1) "age"
+2) "name"
+127.0.0.1:6666> get name
+"cuixiaoyan"
+127.0.0.1:6666> expire name 10 # 设置key过期时间
+(integer) 1
+127.0.0.1:6666> ttl name # 查看key的剩余时间
+(integer) 6
+127.0.0.1:6666> ttl name 
+(integer) 5
+127.0.0.1:6666> ttl name 
+(integer) -2
+127.0.0.1:6666> get name
+(nil)
+127.0.0.1:6666> type age # 查看key的类型
+string
+```
+
+## string(字符串)
+
+```bash
+# 基本操作
+127.0.0.1:6666> flushall # 清空redis
+OK
+127.0.0.1:6666> set key1 v1 
+OK
+127.0.0.1:6666> get key1
+"v1"
+127.0.0.1:6666> exists key1 # 判断key是否存在
+(integer) 1
+127.0.0.1:6666> append key1 "hello" # 追加字符串
+(integer) 7
+127.0.0.1:6666> get key1
+"v1hello"
+127.0.0.1:6666> strlen key1 # 通过key获取值的长度
+(integer) 7
+127.0.0.1:6666> append key1 "cxy"
+(integer) 10
+127.0.0.1:6666> strlen key1
+(integer) 10
+127.0.0.1:6666> get key1
+"v1hellocxy"
+# i++ 步长 i+=
+127.0.0.1:6666> set views 0 # 初始化
+OK
+127.0.0.1:6666> get views
+"0"
+127.0.0.1:6666> incr views # incr 加一
+(integer) 1
+127.0.0.1:6666> incr views
+(integer) 2
+127.0.0.1:6666> decr views # decr 减一
+(integer) 1
+127.0.0.1:6666> decr views
+(integer) 0
+127.0.0.1:6666> incrby views 10 # incrby 加n
+(integer) 10
+127.0.0.1:6666> incrby views 10
+(integer) 20
+127.0.0.1:6666> decrby views 5 # decrby 减n
+(integer) 15
+# 字符串范围 range
+127.0.0.1:6666> set key1 "hello,cuixiaoyan"
+OK
+127.0.0.1:6666> get key1
+"hello,cuixiaoyan"
+127.0.0.1:6666> getrange key1 0 3 # 截取字符串[0，3]
+"hell"
+127.0.0.1:6666> getrange key1 0 -1 # -1为全部，效果如同get key
+"hello,cuixiaoyan"
+127.0.0.1:6666> set key2 qqwsadascas
+OK
+127.0.0.1:6666> get key2
+"qqwsadascas"
+127.0.0.1:6666> setrange key2 1 xxx # 替换指定位置开始的字符串为 xxx
+(integer) 11
+127.0.0.1:6666> get key2
+"qxxxadascas"
+# 设置过期时间 setex(set with expire) 不存在时再进行设置(分布式锁中会使用到) setnx(set if not exist)
+127.0.0.1:6666> setex key3 30 "hello" # 设置过期时间为30秒
+OK
+127.0.0.1:6666> ttl key3
+(integer) 26
+127.0.0.1:6666> ttl key3
+(integer) 16
+127.0.0.1:6666> setnx mykey "redis" # key不存在才会增加
+(integer) 1
+127.0.0.1:6666> keys *
+1) "key2"
+2) "views"
+3) "mykey"
+4) "key1"
+127.0.0.1:6666> setnx mykey "MongoDB" # 替换失败
+(integer) 0
+127.0.0.1:6666> getrange mykey 0 -1 # 截取字符串，等同于get key
+"redis"
+127.0.0.1:6666> setnx mykey1 "MongoDB" # 新增成功
+(integer) 1
+127.0.0.1:6666> getrange mykey1 0 -1
+"MongoDB"
+# 设置多个值，mset,mget
+127.0.0.1:6666> flushall #先清空
+OK
+127.0.0.1:6666> mset k1 v1 k2 v2 k3 v3 # 批量设置多个
+OK
+127.0.0.1:6666> keys *
+1) "k3"
+2) "k1"
+3) "k2"
+127.0.0.1:6666> mget k1 k2 k3 # 批量获取多个
+1) "v1"
+2) "v2"
+3) "v3"
+127.0.0.1:6666> msetnx k1 v1 k4 v4 #因为k1已经存在，不符合条件，原子性不满足，导致失败。
+(integer) 0
+127.0.0.1:6666> keys *
+1) "k3"
+2) "k1"
+3) "k2"
+# 设置一个对象，这里的key是一个巧妙的设计： user:{id}:{filed} , 如此设计在Redis中是完全可以的。
+127.0.0.1:6666> mset user:1:name cxy user:1:age 2
+OK
+127.0.0.1:6666> mget user:1:name user:1:age
+1) "cxy"
+2) "2"
+# getset 先get，再set。
+127.0.0.1:6666> getset db redis # 第一次获取没有key，返回nil，将会赋值。
+(nil)
+127.0.0.1:6666> get db 
+"redis"
+127.0.0.1:6666> getset db mysql # 第二次有值之后，就会修改。
+"redis"
+127.0.0.1:6666> get db
+"mysql"
+```
+
+数据结构是相同的！
+String类似的使用场景：value除了是我们的字符串还可以是我们的数字！
+
+- 计数器
+- 统计多单位的数量
+- 粉丝数
+- 对象缓存存储
+
+## list(列表)
+
+所有的list命令都是用l开头的，Redis不区分大小命令。把list当成 ，栈、队列、阻塞队列！
+
+```bash
+127.0.0.1:6666> lpush list one # 新建list并从左插入，先进先出。可以同时多个值。
+(integer) 1
+127.0.0.1:6666> lpush list two
+(integer) 2
+127.0.0.1:6666> lpush list 3
+(integer) 3
+127.0.0.1:6666> lrange list 0 -1 # 获取list中的所有值。
+1) "3"
+2) "two"
+3) "one"
+127.0.0.1:6666> lrange list 0 1
+1) "3"
+2) "two"
+127.0.0.1:6666> rpush list 5 # 从右插入，进来的在最后面，如同一个链表。
+(integer) 4
+127.0.0.1:6666> lrange list 0 -1
+1) "3"
+2) "two"
+3) "one"
+4) "5"
+# 移除,lpop,rpop。
+127.0.0.1:6666> lrange list 0 -1
+1) "3"
+2) "two"
+3) "one"
+4) "5"
+127.0.0.1:6666> lpop list #从左移除第一个。
+"3"
+127.0.0.1:6666> rpop list # 从右移除第一个。
+"5"
+127.0.0.1:6666> lrange list 0 -1
+1) "two"
+2) "one"
+# lindex
+127.0.0.1:6666> lrange list 0 -1
+1) "two"
+2) "one"
+127.0.0.1:6666> lindex list 0 # 通过下标获取值
+"two"
+127.0.0.1:6666> lindex list 1
+"one"
+127.0.0.1:6666> 
+# llen
+127.0.0.1:6666> llen list # 获取list长度
+(integer) 2
+# lrem 移除指定的值。上面lpop,rpop。只能移除最后的。
+127.0.0.1:6666> lpush list 111
+(integer) 3
+127.0.0.1:6666> lpush list 222
+(integer) 4
+127.0.0.1:6666> lpush list 333
+(integer) 5
+127.0.0.1:6666> lrange list 0 -1
+1) "333"
+2) "222"
+3) "111"
+4) "two"
+5) "one"
+127.0.0.1:6666> lrem list 1 one # 移除一个one
+(integer) 1
+127.0.0.1:6666> lrange list 0 -1
+1) "333"
+2) "222"
+3) "111"
+4) "two"
+127.0.0.1:6666> lpush list 333
+(integer) 5
+127.0.0.1:6666> lrem list 1 two
+(integer) 1
+127.0.0.1:6666> lrange list 0 -1
+1) "333"
+2) "333"
+3) "222"
+4) "111"
+127.0.0.1:6666> lrem list 2 333 # 移除两个333
+(integer) 2
+127.0.0.1:6666> lrange list 0 -1
+1) "222"
+2) "111"
+127.0.0.1:6666> lrem list 9 000 # 移除不存在的值，返回0，移除9个000
+(integer) 0
+
+```
 
