@@ -61,7 +61,7 @@ NoSQL = Not Only SQL （不仅仅是SQL）
 是超大规模的高并发的社区！ 暴露出来很多难以克服的问题，NoSQL在当今大数据环境下发展的十分迅
 速，Redis是发展最快的，而且是我们当下必须要掌握的一个技术！
 很多的数据类型用户的个人信息，社交网络，地理位置。这些数据类型的存储不需要一个固定的格式！
-不需要多月的操作就可以横向扩展的 ！ Map<String,Object> 使用键值对来控制！
+不需要多余的操作就可以横向扩展的 ！ Map<String,Object> 使用键值对来控制！
 
 > NoSQL 特点
 
@@ -89,7 +89,7 @@ Nosql
 - 没有固定的查询语言
 - 键值对存储，列存储，文档存储，图形数据库（社交关系）
 - 最终一致性，
-- CAP定理和BASE （异地多活） 初级架构师！（狂神理念：只要学不死，就往死里学！）
+- CAP定理和BASE （异地多活） 初级架构师!
 - 高性能，高可用，高可扩
 -
 ....
@@ -106,7 +106,7 @@ Nosql
 4. 高并发
 5. 高可扩
 6. 高性能
-   真正在公司中的实践：NoSQL + RDBMS 一起使用才是最强的，阿里巴巴的架构演进 !
+   真正在公司中的实践：NoSQL + RDBMS 一起使用才是最强的 !
 
 ## NoSQL的四大分类
 
@@ -513,6 +513,323 @@ String类似的使用场景：value除了是我们的字符串还可以是我们
 2) "111"
 127.0.0.1:6666> lrem list 9 000 # 移除不存在的值，返回0，移除9个000
 (integer) 0
-
+# trim修剪，list截断。
+127.0.0.1:6666> rpush list "hello"
+(integer) 1
+127.0.0.1:6666> rpush list "hello1"
+(integer) 2
+127.0.0.1:6666> rpush list "hello2"
+(integer) 3
+127.0.0.1:6666> rpush list "hello3"
+(integer) 4
+127.0.0.1:6666> ltrim list 1 2 # 通过下标截取。
+OK
+127.0.0.1:6666> lrange list 0 -1 # 查看全部
+1) "hello1"
+2) "hello2"
+# rpoplpush 移除列表最后一个元素，并将其加入新的列表中。
+127.0.0.1:6666> lrange list 0 -1 
+1) "hello1"
+2) "hello2"
+3) "hello3"
+127.0.0.1:6666> rpop list
+"hello3"
+127.0.0.1:6666> rpoplpush list mylist # 移除当前列表最后一个元素，将它加入新的列表中。
+"hello2"
+127.0.0.1:6666> lrange list 0 -1
+1) "hello1"
+127.0.0.1:6666> lrange mylist 0 -1 # 查看新的列表
+1) "hello2"
+# lset 将列表中指定下标替换成另一个值，更新操作。
+127.0.0.1:6666> exists list # 判断key是否存在
+(integer) 0
+127.0.0.1:6666> lset list 0 item # 如果不存在，替换将会报错
+(error) ERR no such key
+127.0.0.1:6666> lpush list value1
+(integer) 1
+127.0.0.1:6666> lrange list 0 0
+1) "value1"
+127.0.0.1:6666> lset list 0 item # 更新成功。
+OK
+127.0.0.1:6666> lrange list 0 0
+1) "item"
+127.0.0.1:6666> lset list 1 other
+(error) ERR index out of range
+# linsert 将某个具体的value插入到列中某个元素的前面(before)或者后面(after)。
+127.0.0.1:6666> rpush list "heloo"
+(integer) 1
+127.0.0.1:6666> rpush list "world"
+(integer) 2
+127.0.0.1:6666> linsert list before "world" "other" #在world前面增加
+(integer) 3
+127.0.0.1:6666> lrange list 0 -1
+1) "heloo"
+2) "other"
+3) "world"
+127.0.0.1:6666> linsert list after "world" "new" #在后面 
+(integer) 4
+127.0.0.1:6666> lrange list 0 -1
+1) "heloo"
+2) "other"
+3) "world"
+4) "new"
 ```
+
+> 小结
+
+- 他实际上是一个链表，before Node after ， left，right 都可以插入值
+
+- 如果key 不存在，创建新的链表
+
+- 如果key存在，新增内容
+
+- 如果移除了所有值，空链表，也代表不存在！
+
+- 在两边插入或者改动值，效率最高！ 中间元素，相对来说效率会低一点~
+
+  **消息排队！消息队列（Lpush Rpop），栈（ Lpush Lpop）！**
+
+## set(集合)
+
+set中的值，是不可重复的,数据是无序的。
+
+```bash
+127.0.0.1:6666> sadd set "hello"
+(integer) 1
+127.0.0.1:6666> sadd set "redis"
+(integer) 1
+127.0.0.1:6666> sadd set "cuixiaoyan" # 添加元素到set中。
+(integer) 1
+127.0.0.1:6666> smembers set # 查看set中所有值。
+1) "cuixiaoyan"
+2) "hello"
+3) "redis"
+127.0.0.1:6666> sismember set hello # 判断set中是否有某个值
+(integer) 1
+127.0.0.1:6666> sismember set he
+(integer) 0
+127.0.0.1:6666> scard set # 获取set里值的数量
+(integer) 3
+# 删除 srem
+127.0.0.1:6666> srem set "hello" # 删除
+(integer) 1
+127.0.0.1:6666> scard set 
+(integer) 2
+127.0.0.1:6666> smembers set
+1) "cuixiaoyan"
+2) "redis"
+# set不重复集合，抽随机(抽奖等等)。
+127.0.0.1:6666> smembers set
+1) "woshi"
+2) "cuixiaoyan"
+3) "nihao"
+4) "redis"
+127.0.0.1:6666> srandmember set # 抽取一个
+"woshi"
+127.0.0.1:6666> srandmember set
+"redis"
+127.0.0.1:6666> srandmember set 2 # 抽取两个
+1) "nihao"
+2) "redis"
+# 删除指定的key，随机删除key。
+127.0.0.1:6666> spop set # 删除
+"redis"
+127.0.0.1:6666> smembers set
+1) "woshi"
+2) "cuixiaoyan"
+3) "nihao"
+# 将指定的值，移动到另一个set中。
+127.0.0.1:6666> sadd set "ada" "asdad" # 添加多个值
+(integer) 2
+127.0.0.1:6666> smembers set # 查看所有值
+1) "ada"
+2) "woshi"
+3) "cuixiaoyan"
+4) "nihao"
+5) "asdad"
+127.0.0.1:6666> smove set myset "woshi" # 移动某个值
+(integer) 1
+127.0.0.1:6666> smembers set
+1) "nihao"
+2) "ada"
+3) "cuixiaoyan"
+4) "asdad"
+127.0.0.1:6666> smembers myset
+1) "woshi"
+# 数字类集合
+127.0.0.1:6666> sadd set1 a b c d e f 
+(integer) 6
+127.0.0.1:6666> sadd set2 q w e r t y
+(integer) 6
+127.0.0.1:6666> sdiff set1 set2 # 差集
+1) "a"
+2) "f"
+3) "c"
+4) "b"
+5) "d"
+127.0.0.1:6666> sinter set1 set2 # 交集
+1) "e"
+127.0.0.1:6666> sunion set1 set2 # 并集
+ 1) "y"
+ 2) "e"
+ 3) "d"
+ 4) "b"
+ 5) "a"
+ 6) "f"
+ 7) "w"
+ 8) "t"
+ 9) "q"
+10) "c"
+11) "r"
+```
+
+微博，A用户将所有关注的人放在一个set集合中！将它的粉丝也放在一个集合中！
+
+共同关注，共同爱好，二度好友，推荐好友！（六度分割理论）
+
+## hash(哈希)
+
+Map集合，key-map! 时候这个值是一个map集合！ 本质和String类型没有太大区别，还是一个简单的
+key-vlaue！
+
+```bash
+127.0.0.1:6666> hset hash u1 cxy # 设置单个值
+(integer) 1
+127.0.0.1:6666> hmset hash u2 ccc u3 sss # 设置多个值
+OK
+127.0.0.1:6666> hmget hash u1 u2 # 获取多个值
+1) "cxy"
+2) "ccc"
+127.0.0.1:6666> hgetall hash # 获取所有值
+1) "u1"
+2) "cxy"
+3) "u2"
+4) "ccc"
+5) "u3"
+6) "sss"
+127.0.0.1:6666> hdel hash u1 # 删除指定值
+(integer) 1
+127.0.0.1:6666> hgetall hash
+1) "u2"
+2) "ccc"
+3) "u3"
+4) "sss"
+# hlen
+127.0.0.1:6666> hmset hash u1 cxy u4 iii
+OK
+127.0.0.1:6666> hgetall hash
+1) "u2"
+2) "ccc"
+3) "u3"
+4) "sss"
+5) "u1"
+6) "cxy"
+7) "u4"
+8) "iii"
+127.0.0.1:6666> hlen hash # 获取hash的长度
+(integer) 4
+# 判断set集合中是否存在某个值
+127.0.0.1:6666> hexists hash u1
+(integer) 1
+127.0.0.1:6666> hexists hash 11
+(integer) 0
+# 只获取所有的key，和所有的value
+127.0.0.1:6666> hkeys hash
+1) "u2"
+2) "u3"
+3) "u1"
+4) "u4"
+127.0.0.1:6666> hvals hash
+1) "ccc"
+2) "sss"
+3) "cxy"
+4) "iii"
+# 指定增量 hincrby
+127.0.0.1:6666> hset hash u5 5
+(integer) 1
+127.0.0.1:6666> hincrby hash u5 10
+(integer) 15
+127.0.0.1:6666> hincrby hash u5 -10
+(integer) 5
+127.0.0.1:6666> hsetnx hash u6 122 # 不存在才会新增成功。
+(integer) 1
+127.0.0.1:6666> hsetnx hash u1 11
+(integer) 0
+```
+
+hash变更的数据 user name age,尤其是是用户信息之类的，经常变动的信息！ hash 更适合于对象的
+存储，String更加适合字符串存储！
+
+## zset(有序集合)
+
+在set的基础上，增加了一个类似于id的属性
+
+```bash
+127.0.0.1:6666> zadd zset 1 one # 增加一个，或多个
+(integer) 1
+127.0.0.1:6666> zadd zset 2 two 3 three
+(integer) 2
+127.0.0.1:6666> zrange zset 0 -1 # 查看所有zset
+1) "one"
+2) "two"
+3) "three"
+# zset排序
+127.0.0.1:6666> zadd zset 2500 xiaobai
+(integer) 1
+127.0.0.1:6666> zadd zset 5000 zhangsan
+(integer) 1
+127.0.0.1:6666> zadd zset 500 cuixiaoyan
+(integer) 1
+127.0.0.1:6666> zrangebyscore zset -inf +inf # 从小到大进行排序，升序。
+1) "cuixiaoyan"
+2) "xiaobai"
+3) "zhangsan"
+127.0.0.1:6666> zrevrange zset 0 -1 # 从大到小进行排序，降序。
+1) "zhangsan"
+2) "xiaobai"
+3) "cuixiaoyan"
+127.0.0.1:6666> zrangebyscore zset -inf +inf withscores # 升序，并显示类似id的值。
+1) "cuixiaoyan"
+2) "500"
+3) "xiaobai"
+4) "2500"
+5) "zhangsan"
+6) "5000"
+127.0.0.1:6666> zrangebyscore zset -inf 2500 withscores # 最大不超过两千五的。
+1) "cuixiaoyan"
+2) "500"
+3) "xiaobai"
+4) "2500"
+# 移除元素rem
+127.0.0.1:6666> zrange zset 0 -1 # 查看zset中所有值
+1) "cuixiaoyan"
+2) "xiaobai"
+3) "zhangsan"
+127.0.0.1:6666> zrem zset zhangsan # 删除指定值
+(integer) 1
+127.0.0.1:6666> zrange zset 0 -1
+1) "cuixiaoyan"
+2) "xiaobai"
+127.0.0.1:6666> zcard zset # 获取个数
+(integer) 2
+127.0.0.1:6666> zadd zset 1 c 2 x 3 y
+(integer) 3
+127.0.0.1:6666> zcount zset 13
+# 获取指定区间
+127.0.0.1:6666> zadd zset 1 c 2 x 3 y
+(integer) 3
+127.0.0.1:6666> zcount zset 1 3
+(integer) 3
+127.0.0.1:6666> zcount zset 1 2
+(integer) 2
+```
+
+案例思路：set 排序
+存储班级成绩表，工资表排序！
+普通消息，1， 重要消息 2，带权重进行判断！
+排行榜应用实现，取Top N 测试！
+
+# 三种特殊类型
+
+## Geospatial 地理位置
 
