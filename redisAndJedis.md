@@ -845,7 +845,8 @@ Redis 的 Geo 在Redis3.2 版本就推出了！ 这个功能可以推算地理�
 
 > getadd
 
-# getadd 添加地理位置
+## getadd 添加地理位置
+
 - 规则：两级无法直接添加，我们一般会下载城市数据，直接通过java程序一次性导入！
 
 - 有效的经度从-180度到180度。
@@ -876,6 +877,611 @@ Redis 的 Geo 在Redis3.2 版本就推出了！ 这个功能可以推算地理�
    2) "39.90000009167092543"
 2) 1) "121.47000163793563843"
    2) "31.22999903975783553"
+# geodist 两人之间的距离
+# 单位 m，km，mi英里，ft英尺。
+127.0.0.1:6666> geodist china:city beijing shanghai km # 北京到上海单位千米。
+"1067.3788"
+127.0.0.1:6666> geodist china:city beijing zhengzhou # 北京到郑州单位米。
+"621882.2073"
+127.0.0.1:6666> geodist china:city beijing zhengzhou km
+"621.8822"
+# georadius 以给定的经纬度为中心， 找出某一半径内的元素
+# 我附近的人？ （获得所有附近的人的地址，定位！）通过半径来查询！
+# 获得指定数量的人，200
+# 所有数据应该都录入：china:city ，才会让结果更加请求
+127.0.0.1:6666> georadius china:city 110 30 1000 km # 根据110 30 经纬度为坐标，寻找方圆1000km内的城市。
+1) "xian"
+2) "hangzhou"
+3) "zhengzhou"
+127.0.0.1:6666> georadius china:city 110 30 500 km
+1) "xian"
+127.0.0.1:6666> georadius china:city 110 30 500 km withdist # 显示范围内城市，加距离。
+1) 1) "xian"
+   2) "483.8340"
+127.0.0.1:6666> georadius china:city 110 30 500 km withcoord # 显示他人的定位信息。
+1) 1) "xian"
+   2) 1) "108.96000176668167114"
+      2) "34.25999964418929977"
+127.0.0.1:6666> georadius china:city 110 30 1000 km withdist withcoord count 1 # 筛选出最近的一个结果。
+1) 1) "xian"
+   2) "483.8340"
+   3) 1) "108.96000176668167114"
+      2) "34.25999964418929977"
+127.0.0.1:6666> georadius china:city 110 30 1000 km withdist withcoord 
+1) 1) "xian"
+   2) "483.8340"
+   3) 1) "108.96000176668167114"
+      2) "34.25999964418929977"
+2) 1) "hangzhou"
+   2) "977.5143"
+   3) 1) "120.1600000262260437"
+      2) "30.2400003229490224"
+3) 1) "zhengzhou"
+   2) "630.2160"
+   3) 1) "113.65999907255172729"
+      2) "34.74999926510690784"
+127.0.0.1:6666> georadius china:city 110 30 1000 km withdist withcoord count 2 # 两个。
+1) 1) "xian"
+   2) "483.8340"
+   3) 1) "108.96000176668167114"
+      2) "34.25999964418929977"
+2) 1) "zhengzhou"
+   2) "630.2160"
+   3) 1) "113.65999907255172729"
+      2) "34.74999926510690784"
+# 找出指定范围内的其他元素。通过a找b。
+127.0.0.1:6666> georadiusbymember china:city beijing 1000 km 
+1) "zhengzhou"
+2) "beijing"
+3) "xian"
+127.0.0.1:6666> georadiusbymember china:city shanghai 400 km
+1) "hangzhou"
+2) "shanghai"
+# geohash返回11位的字符串。将二维的经纬度，转换为一个字符串，两个字符串越相近，表示距离也越近。
+127.0.0.1:6666> geohash china:city beijing zhengzhou
+1) "wx4fbxxfke0"
+2) "ww0vdqh9mv0"
+# geo的底层就是zset，同理可以使用zset的命令。
+127.0.0.1:6666> zrange china:city 0 -1
+1) "xian"
+2) "hangzhou"
+3) "shanghai"
+4) "zhengzhou"
+5) "beijing"
+127.0.0.1:6666> zrem china:city beijing
+(integer) 1
+127.0.0.1:6666> zrange china:city 0 -1
+1) "xian"
+2) "hangzhou"
+3) "shanghai"
+4) "zhengzhou"
+```
+
+## hyperloglog
+
+> 什么是基数？
+
+基数（cardinal number）在数学上，是[集合论](https://baike.baidu.com/item/集合论/494533)中刻画任意[集合](https://baike.baidu.com/item/集合/2908117)大小的一个概念。两个能够建立元素间一一对应的集合称为互相对等集合。例如3个人的集合和3匹马的集合可以建立[一一](https://baike.baidu.com/item/一一/2702379)[对应](https://baike.baidu.com/item/对应)，是两个[对等](https://baike.baidu.com/item/对等/4198791)的集合。
+
+Redis 2.8.9 版本就更新了 Hyperloglog 数据结构！
+Redis Hyperloglog 基数统计的算法！
+
+优点：占用的内存是固定，2^64 不同的元素的技术，只需要废 12KB内存！如果要从内存角度来比较的
+话 Hyperloglog 首选！
+网页的 UV （一个人访问一个网站多次，但是还是算作一个人！）
+传统的方式， set 保存用户的id，然后就可以统计 set 中的元素数量作为标准判断 !
+这个方式如果保存大量的用户id，就会比较麻烦！我们的目的是为了计数，而不是保存用户id；
+0.81% 错误率！ 统计UV任务，可以忽略不计的！
+
+```bash
+127.0.0.1:6666> pfadd key a b c d e f g h i j # 创建第一个
+(integer) 1
+127.0.0.1:6666> pfcount key 
+(integer) 10
+127.0.0.1:6666> pfadd key1 i j z x c v b n m 
+(integer) 1
+127.0.0.1:6666> pfcount key1
+(integer) 9
+127.0.0.1:6666> pfmerge key2 key key1 # 将两个合并
+OK
+127.0.0.1:6666> pfcount key2 # 看合并的数量
+(integer) 15
+```
+
+如果允许容错，那么一定可以使用 Hyperloglog ！
+如果不允许容错，就使用 set 或者自己的数据类型即可！
+
+## bitmap
+
+> 位存储。
+
+统计用户信息，活跃，不活跃！
+登录 、 未登录！ 打卡，365打卡！ 两个状态的，都可以使用
+Bitmaps！
+Bitmap 位图，数据结构！ 都是操作二进制位来进行记录，就只有0 和 1 两个状态！
+365 天 = 365 bit 1字节 = 8bit 46 个字节左右！
+
+使用bitmap 来记录 周一到周日的打卡！
+周一：1 周二：0 周三：0 周四：1 ......
+
+```bash
+127.0.0.1:6666> setbit sign 0 1 # 是否打卡，0已打卡，1未打。(规则自己定。)
+(integer) 0
+127.0.0.1:6666> setbit sign 1 0
+(integer) 0
+127.0.0.1:6666> setbit sign 2 0
+(integer) 0
+127.0.0.1:6666> setbit sign 3 1
+(integer) 0
+127.0.0.1:6666> setbit sign 4 1
+(integer) 0
+127.0.0.1:6666> setbit sign 5 0
+(integer) 0
+127.0.0.1:6666> setbit sign 6 0
+(integer) 0
+127.0.0.1:6666> getbit sign 3 # 获取周三。
+(integer) 1
+127.0.0.1:6666> getbit sign 6
+(integer) 0
+127.0.0.1:6666> bitcount sign # 这周三个0，也就是打卡三天。
+(integer) 3
+```
+
+# 事务
+
+Redis 事务本质：一组命令的集合！
+一个事务中的所有命令都会被序列化，在事务执行过程的中，会按照顺序执行！
+一次性、顺序性、排他性！执行一些列的命令！
+
+Redis事务没有没有隔离级别的概念！
+所有的命令在事务中，并没有直接被执行！只有发起执行命令的时候才会执行！Exec
+Redis单条命令式保存原子性的，但是事务不保证原子性！
+redis的事务：
+
+- 开启事务（multi）
+- 命令入队（......）
+- 执行事务（exec）
+
+```bash
+# 正常执行事务。
+127.0.0.1:6666> multi
+OK
+127.0.0.1:6666> set k1 v1 
+QUEUED
+127.0.0.1:6666> set k2 v2 
+QUEUED
+127.0.0.1:6666> get k2
+QUEUED
+127.0.0.1:6666> set k3 v3 
+QUEUED
+127.0.0.1:6666> exec
+1) OK
+2) OK
+3) "v2"
+4) OK
+# 放弃事务。
+127.0.0.1:6666> multi # 开启事务。
+OK
+127.0.0.1:6666> set k1 v1 
+QUEUED
+127.0.0.1:6666> set k2 v2 
+QUEUED
+127.0.0.1:6666> set k4 v4 
+QUEUED
+127.0.0.1:6666> discard # 放弃事务。
+OK
+127.0.0.1:6666> get k4 # 所有队列中的操作都未执行。
+(nil)
+# 编译型异常（代码有问题！ 命令有错！） ，事务中所有的命令都不会被执行
+127.0.0.1:6666> multi 
+OK
+127.0.0.1:6666> set k1 v1 
+QUEUED
+127.0.0.1:6666> set k2 v2 
+QUEUED
+127.0.0.1:6666> set k3 v3 
+QUEUED
+127.0.0.1:6666> getset k3 # 执行了错误的命令。
+(error) ERR wrong number of arguments for 'getset' command
+127.0.0.1:6666> set k4 v4 
+QUEUED
+127.0.0.1:6666> exec
+(error) EXECABORT Transaction discarded because of previous errors.
+127.0.0.1:6666> get k4 # 所有的命令都不会执行。
+(nil)
+# 运行时异常（1/0）， 如果事务队列中存在语法性，那么执行命令的时候，其他命令是可以正常执行的，错误命令抛出异常！
+127.0.0.1:6666> set k1 v1 # 设置一个非数字型的。
+OK
+127.0.0.1:6666> multi 
+OK
+127.0.0.1:6666> incr k1 # 加1，v1无法加1，但是这里编译通过。
+QUEUED
+127.0.0.1:6666> set k2 v2 
+QUEUED
+127.0.0.1:6666> set k3 v3 
+QUEUED
+127.0.0.1:6666> get k3 
+QUEUED
+127.0.0.1:6666> exec # 执行事务。
+1) (error) ERR value is not an integer or out of range # 运行时报错，不会影响到其他操作。
+2) OK
+3) OK
+4) "v3"
+127.0.0.1:6666> mget k2 k3
+1) "v2"
+2) "v3"
+```
+
+> 监控！ Watch 
+
+悲观锁：
+
+- 很悲观，认为什么时候都会出问题，无论做什么都会加锁！
+
+乐观锁：
+
+- 很乐观，认为什么时候都不会出问题，所以不会上锁！ 更新数据的时候去判断一下，在此期间是否
+  有人修改过这个数据，
+- 获取version
+- 更新的时候比较 version
+
+> redis监控测试。
+
+```bash
+# 正常操作。
+127.0.0.1:6666> set money 100 # 设置总金额。
+OK
+127.0.0.1:6666> set out 0 # 已消费金额。
+OK
+127.0.0.1:6666> watch money # 监控金额。
+OK
+127.0.0.1:6666> multi  # 开启事务。
+OK
+127.0.0.1:6666> decrby money 20 # 减。
+QUEUED
+127.0.0.1:6666> incrby out 20 # 加。
+QUEUED
+127.0.0.1:6666> exec # 执行事务，正常执行。
+1) (integer) 80
+2) (integer) 20
+# 测试多线程修改值 , 使用watch 可以当做redis的乐观锁操作！
+127.0.0.1:6666> watch money #监控
+OK
+127.0.0.1:6666> multi 
+OK
+127.0.0.1:6666> decrby money 10
+QUEUED
+127.0.0.1:6666> incrby out 10
+QUEUED
+127.0.0.1:6666> exec # 未执行前，money被另外线程修改。
+(error) EXECABORT Transaction discarded because of previous errors.
+# 另外线程
+[root@centos8 ~]# docker ps 
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                              NAMES
+c91b615aebc1        redis:6.0.5         "docker-entrypoint.s…"   3 days ago          Up About an hour    6379/tcp, 0.0.0.0:6666->6666/tcp   cxyredis
+[root@centos8 ~]# docker exec -it c91b615aebc1 /bin/bash
+root@c91b615aebc1:/data# cd /bin
+root@c91b615aebc1:/bin# redis-cli -p 6666
+127.0.0.1:6666> auth "cxy0809."
+OK
+127.0.0.1:6666> keys *
+1) "out"
+2) "money"
+127.0.0.1:6666> get money
+"80"
+127.0.0.1:6666> decrby money 10 # 修改操作。
+(integer) 70
+# 如果修改失败，获取最新的值就好。
+127.0.0.1:6666> unwatch # 解除监控。
+OK
+127.0.0.1:6666> watch money # 重新监控。
+OK
+127.0.0.1:6666> multi
+OK
+127.0.0.1:6666> decrby money 1
+QUEUED
+127.0.0.1:6666> incrby money 1
+QUEUED
+127.0.0.1:6666> exec # 执行成功，再没有其他线程打扰到情况下。
+1) (integer) 69
+2) (integer) 70
+```
+
+# jedis
+
+什么是Jedis 是 Redis 官方推荐的 java连接开发工具！ 使用Java 操作Redis 中间件！如果你要使用
+java操作redis，那么一定要对Jedis 十分的熟悉! 两者的命令一样。
+
+1、导入依赖
+
+```xml
+		// https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.11.1'
+    // https://mvnrepository.com/artifact/redis.clients/jedis
+    compile group: 'redis.clients', name: 'jedis', version: '3.3.0'
+```
+
+2、编码测试
+
+- 连接数据库
+- 操作命令
+- 断开连接
+
+```java
+package com.cxy.redis;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import redis.clients.jedis.Jedis;
+
+import java.util.HashMap;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+@SpringBootTest
+class RedisApplicationTests {
+    @Test
+    public void testPing() {
+        Jedis jedis = new Jedis("192.168.106.129", 6666);
+        //如果没有密码，就可以省略下面步骤。
+        jedis.auth("cxy0809.");
+        System.out.println(jedis.ping());
+    }
+
+    @Test
+    public void testKey() {
+        Jedis jedis = new Jedis("192.168.106.129", 6666);
+        //如果没有密码，就可以省略下面步骤。
+        jedis.auth("cxy0809.");
+        //测试key-value的用法
+        System.out.println("1.清空数据：" + jedis.flushDB());
+        System.out.println("2.判断某个键是否存在：" + jedis.exists("username"));
+        System.out.println("3.新增<'username','lq'>的键值对：" + jedis.set("username", "lq"));
+        System.out.println("4.新增<'password','123456'>的键值对：" + jedis.set("password", "123456"));
+        System.out.println("5.系统中所有的键如下：");
+        Set<String> keys = jedis.keys("*");
+        System.out.println(keys);
+        System.out.println("6.删除键password:" + jedis.del("password"));
+        System.out.println("7.判断键password是否存在：" + jedis.exists("password"));
+        System.out.println("8.查看键username缩存储的值的类型：" + jedis.type("username"));
+        System.out.println("9.随机返回key空间的某一个：" + jedis.randomKey());
+        System.out.println("10.重命名key:" + jedis.rename("username", "myname"));
+        System.out.println("11.取出改后的myname:" + jedis.get("myname"));
+        System.out.println("12.按索引查询：" + jedis.select(0));
+        System.out.println("13.删除当前选择数据库的所有key:" + jedis.flushDB());
+        System.out.println("14.返回当前数据库中key的数目：" + jedis.dbSize());
+        System.out.println("15.删除所有数据库中的所有key:" + jedis.flushAll());
+    }
+
+    @Test
+    public void testString() {
+        Jedis jedis = new Jedis("192.168.106.129", 6666);
+        //如果没有密码，就可以省略下面步骤。
+        jedis.auth("cxy0809.");
+        jedis.flushDB();
+        System.out.println("===================增加数据====================");
+        System.out.println(jedis.set("key1", "value1"));
+        System.out.println(jedis.set("key2", "value2"));
+        System.out.println(jedis.set("key3", "value3"));
+        System.out.println("1.删除键key2:" + jedis.del("key2"));
+        System.out.println("2.获取键key2：" + jedis.get("key2"));
+        System.out.println("3.修改key1:" + jedis.set("key1", "valueChanged"));
+        System.out.println("4.获取key1的值：" + jedis.get("key1"));
+        System.out.println("5.在key3后面追加值：" + jedis.append("key3", "End"));
+        System.out.println("6.获取key3的值：" + jedis.get("key3"));
+        System.out.println("7.增加多个键值对：" + jedis.mset("key4", "value4", "key5", "value5"));
+        System.out.println("8.获取多个键值对：" + jedis.mget("key1", "key4"));
+        System.out.println("9.获取多个键值对：" + jedis.mget(""));
+        System.out.println("10.删除多个键值对：" + jedis.del("key1", "key4"));
+        System.out.println("11.获取多个键值对：" + jedis.mget("key1", "key2"));
+
+        jedis.flushDB();
+        System.out.println("================新增键值对防止被覆盖================");
+        System.out.println(jedis.setnx("key1", "value1"));
+        System.out.println(jedis.setnx("key2", "value2"));
+        System.out.println(jedis.setnx("key2", "value2-newValue"));
+        System.out.println(jedis.get("key1"));
+        System.out.println(jedis.get("key2"));
+
+        System.out.println("================新增键值对并设置有效时间================");
+        System.out.println(jedis.setex("key3", 2, "value3"));
+        System.out.println(jedis.get("key3"));
+        try {
+            TimeUnit.SECONDS.sleep(3);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println(jedis.get("key3"));
+
+        System.out.println("================获取原值，更新为新值================");
+        System.out.println(jedis.getSet("key2", "key2GetSet"));
+        System.out.println(jedis.get("key2"));
+        System.out.println("截取指定下标key2的字符串：" + jedis.getrange("key2", 2, 4));
+    }
+
+    @Test
+    public void testList() {
+        Jedis jedis = new Jedis("192.168.106.129", 6666);
+        //如果没有密码，就可以省略下面步骤。
+        jedis.auth("cxy0809.");
+
+        jedis.flushDB();
+        System.out.println("=========添加一个List========");
+        jedis.lpush("collections", "ArrayList", "Vector", "Stack", "HashMap");
+        jedis.lpush("collections", "HashSet");
+        jedis.lpush("collections", "TreeSet");//从左边往进加
+        jedis.rpush("collections", "HashMap");//从右边往进加
+        jedis.lpush("collections", "TreeMap");
+        System.out.println("collections中的内容：" + jedis.lrange("collections", 0, -1));//-1代表倒数第一个
+        System.out.println("collections中0到3区间的内容：" + jedis.lrange("collections", 0, 3));
+        System.out.println("============================");
+        //删除列表指定的值，第二个参数为删除的个数（有重复时）！后add进去的值先被删掉，类似于出栈！
+        System.out.println("删除指定个数的元素：" + jedis.lrem("collections", 2, "HashMap"));
+        System.out.println("collections中的内容：" + jedis.lrange("collections", 0, -1));
+        System.out.println("删除下标0-3区间之外的元素：" + jedis.ltrim("collections", 0, 3));
+        System.out.println("collections中的内容：" + jedis.lrange("collections", 0, -1));
+        System.out.println("collections列表出栈（左）：" + jedis.lpop("collections"));
+        System.out.println("collections中的内容：" + jedis.lrange("collections", 0, -1));
+        System.out.println("collections列表出栈（右）：" + jedis.rpop("collections"));
+        System.out.println("collections中的内容：" + jedis.lrange("collections", 0, -1));
+        System.out.println("修改指定下标1的内容：" + jedis.lset("collections", 1, "hahaaha"));
+        System.out.println("collections中的内容：" + jedis.lrange("collections", 0, -1));
+        System.out.println("============================");
+        System.out.println("collections的长度：" + jedis.llen("collections"));
+        System.out.println("获取指定下标1的元素：" + jedis.lindex("collections", 1));
+        System.out.println("==============排序==============");
+        jedis.lpush("sortedList", "5", "6", "4", "3", "9", "1");
+        System.out.println("排序前：" + jedis.lrange("sortedList", 0, -1));
+        System.out.println("排序后：" + jedis.sort("sortedList"));
+
+    }
+
+    @Test
+    public void testSet() {
+        Jedis jedis = new Jedis("192.168.106.129", 6666);
+        //如果没有密码，就可以省略下面步骤。
+        jedis.auth("cxy0809.");
+
+        jedis.flushDB();
+        System.out.println("===============向集合中添加元素（不重复）================");
+        System.out.println(jedis.sadd("set", "e1", "e3", "e2", "e5", "e7", "e4", "e0", "e8"));
+        System.out.println(jedis.sadd("set", "e6"));
+        System.out.println(jedis.sadd("set", "e6"));
+        System.out.println("set集合中所有的元素为：" + jedis.smembers("set"));
+        System.out.println("删除一个指定元素e0：" + jedis.srem("set", "e0"));
+        System.out.println("set集合中所有的元素为：" + jedis.smembers("set"));
+        System.out.println("删除多个指定元素e7，e5：" + jedis.srem("set", "e7", "e5"));
+        System.out.println("set集合中所有的元素为：" + jedis.smembers("set"));
+        System.out.println("随机的移除集合中的一个元素：" + jedis.spop("set"));
+        System.out.println("随机的移除集合中的一个元素：" + jedis.spop("set"));
+        System.out.println("set集合中所有的元素为：" + jedis.smembers("set"));
+        System.out.println("set集合中的元素个数：" + jedis.scard("set"));
+        System.out.println("e1是否在set集合中：" + jedis.sismember("set", "e1"));
+        System.out.println("========================================================");
+        System.out.println(jedis.sadd("set1", "e1", "e3", "e2", "e5", "e7", "e4", "e6"));
+        System.out.println(jedis.sadd("set2", "e1", "e3", "e0", "e5", "e8", "e4", "e6"));
+        System.out.println("将set1中的元素删掉e1并将e1存入set3中：" + jedis.smove("set1", "set3", "e1"));
+        System.out.println("将set1中的元素删掉e5并将e5存入set3中：" + jedis.smove("set1", "set3", "e5"));
+        System.out.println("set1集合中所有的元素为：" + jedis.smembers("set1"));
+        System.out.println("set3集合中所有的元素为：" + jedis.smembers("set3"));
+        System.out.println("=====================集合运算=======================");
+        System.out.println("set1集合中所有的元素为：" + jedis.smembers("set1"));
+        System.out.println("set2集合中所有的元素为：" + jedis.smembers("set2"));
+        System.out.println("set1与set2集合的并集：" + jedis.sunion("set1", "set2"));
+        System.out.println("set1与set2集合的交集：" + jedis.sinter("set1", "set2"));
+        System.out.println("set1与set2集合的差集：" + jedis.sdiff("set1", "set2"));//set1与set2中去掉交集后剩余的元素
+        jedis.sinterstore("set4", "set1", "set2");//求交集并将交集保存在dstkey中
+        System.out.println("set4集合中所有的元素为：" + jedis.smembers("set4"));
+    }
+
+    @Test
+    public void tsetHash() {
+        Jedis jedis = new Jedis("192.168.106.129", 6666);
+        //如果没有密码，就可以省略下面步骤。
+        jedis.auth("cxy0809.");
+
+        HashMap<String, String> map = new HashMap<String, String>();
+        map.put("k1", "v1");
+        map.put("k2", "v2");
+        map.put("k3", "v3");
+        map.put("k4", "v4");
+
+        //添加元素
+        jedis.hmset("hash", map);
+        //还可以这么添加
+        jedis.hset("hash", "k5", "v5");
+        System.out.println("散列hash的所有键值对：" + jedis.hgetAll("hash"));
+        System.out.println("散列hash的所有键：" + jedis.hkeys("hash"));
+        System.out.println("散列hash的所有值：" + jedis.hvals("hash"));
+        System.out.println("将k6的保存的值加上一个整数，如果k6不存在则添加k6：" + jedis.hincrBy("hash", "k6", 5));
+        System.out.println("散列hash的所有键值对：" + jedis.hgetAll("hash"));
+        System.out.println("将k6的保存的值加上一个整数，如果k6不存在则添加k6：" + jedis.hincrBy("hash", "k6", 5));
+        System.out.println("散列hash的所有键值对：" + jedis.hgetAll("hash"));
+        System.out.println("删除一个或者多个键值对：" + jedis.hdel("hash", "k1", "k3"));
+        System.out.println("散列hash的所有键值对：" + jedis.hgetAll("hash"));
+        System.out.println("散列hash的所有键值对个数：" + jedis.hlen("hash"));
+        System.out.println("判断k2是否在hash中：" + jedis.hexists("hash", "k2"));
+        System.out.println("判断k1是否在hash中：" + jedis.hexists("hash", "k1"));
+        System.out.println("获取hash中的一个值：" + jedis.hmget("hash", "k4"));
+        System.out.println("获取hash中的多个值：" + jedis.hmget("hash", "k4", "k6"));
+    }
+
+    @Test
+    public void testZset() {
+        Jedis jedis = new Jedis("192.168.106.129", 6666);
+        //如果没有密码，就可以省略下面步骤。
+        jedis.auth("cxy0809.");
+
+        jedis.flushDB();
+        jedis.zadd("myset", 1, "one");
+        jedis.zadd("myset", 2, "two");
+        jedis.zadd("myset", 3, "three");
+        System.out.println("查看全部的值：" + jedis.zrange("myset", 0, -1));
+
+        jedis.flushDB();
+        jedis.zadd("salsry", 2500, "zhangsan");
+        jedis.zadd("salsry", 500, "lisi");
+        jedis.zadd("salsry", 5000, "wangwu");
+        System.out.println("由高到低排序：" + jedis.zrangeByScore("salsry", "-inf", "+inf"));
+        System.out.println("由高到低排序：" + jedis.zrevrangeByScore("salsry", "+inf", "-inf"));
+        System.out.println("查看全部的值：" + jedis.zrange("salsry", 0, -1));
+        jedis.zrem("salsry", "lisi");
+        System.out.println("查看全部的值：" + jedis.zrange("salsry", 0, -1));
+        System.out.println("查看所有元素的个数：" + jedis.zcard("salsry"));
+
+        jedis.flushDB();
+        jedis.zadd("myset", 1, "one");
+        jedis.zadd("myset", 2, "two");
+        jedis.zadd("myset", 3, "three");
+        jedis.zadd("myset", 4, "four");
+        System.out.println("获取指定区间元素的个数：" + jedis.zcount("myset", 0, 3));
+    }
+
+
+}
 
 ```
+
+## 常用api
+
+所有的api命令，就是我们对应的上面学习的指令，一个都没有变化！如上，其实就是中文api。
+
+## 事务
+
+```java
+@Test
+    public void testTX() throws JsonProcessingException {
+        Jedis jedis = new Jedis("192.168.106.129", 6666);
+        //如果没有密码，就可以省略下面步骤。
+        jedis.auth("cxy0809.");
+
+        HashMap<String, Object> userMap = new HashMap<>();
+        userMap.put("name", "cuixiaoyan");
+        userMap.put("age", "18");
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        String userList = objectMapper.writeValueAsString(userMap);
+        //开启事务
+        Transaction multi = jedis.multi();
+        try {
+            multi.set("user1", userList);
+            multi.set("user2", userList);
+            //代码抛出移除，执行失败。
+            //int i = 1 / 0;
+            multi.exec();//执行事务。
+
+        } catch (Exception e) {
+            multi.discard(); //放弃事务。
+            e.printStackTrace();
+        } finally {
+            System.out.println(jedis.get("user1"));
+            System.out.println(jedis.get("user2"));
+            jedis.close();//关闭连接。
+
+        }
+
+    }
+```
+
+
 
