@@ -1,9 +1,13 @@
 package com.cxy.redis;
 
+import com.cxy.redis.pojo.User;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.core.RedisTemplate;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Transaction;
 
@@ -12,7 +16,12 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @SpringBootTest
-class RedisApplicationTests {
+public class RedisApplicationTests {
+
+    @Autowired
+    private RedisTemplate redisTemplate;
+
+
     @Test
     public void testPing() {
         Jedis jedis = new Jedis("192.168.106.129", 6666);
@@ -260,6 +269,44 @@ class RedisApplicationTests {
             jedis.close();//关闭连接。
 
         }
+
+    }
+
+    /**
+     * RedisTemplate测试
+     */
+    @Test
+    public void testRedisTemplate() {
+        // redisTemplate 操作不同的数据类型，api和我们的指令是一样的
+        // opsForValue 操作字符串 类似String
+        // opsForList 操作List 类似List
+        // opsForSet
+        // opsForHash
+        // opsForZSet
+        // opsForGeo
+        // opsForHyperLogLog
+        // 除了进本的操作，我们常用的方法都可以直接通过redisTemplate操作，比如事务，和基本的CRUD
+        // 获取redis的连接对象
+        // RedisConnection connection = redisTemplate.getConnectionFactory().getConnection();
+        // connection.flushDb();
+        // connection.flushAll();
+
+        redisTemplate.opsForValue().set("name", "cuixiaoyan");
+        System.out.println(redisTemplate.opsForValue().get("name"));
+
+    }
+
+    /**
+     * 保存对象
+     */
+    @Test
+    public void testSaveUser() throws JsonProcessingException {
+        User user = new User("崔笑颜1", 28);
+//        ObjectMapper objectMapper = new ObjectMapper();
+//        objectMapper.writeValueAsString(user);
+
+        redisTemplate.opsForValue().set("user", user);
+        System.out.println(redisTemplate.opsForValue().get("user"));
 
     }
 
