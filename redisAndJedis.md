@@ -1843,5 +1843,458 @@ appendfsync everysec # 每秒执行一次 sync，可能会丢失这1s的数据�
 
 # Redis发布订阅
 
+Redis 发布订阅(pub/sub)是一种消息通信模式：发送者(pub)发送消息，订阅者(sub)接收消息。微信、
+微博、关注系统！
+Redis 客户端可以订阅任意数量的频道。
+订阅/发布消息图：
+第一个：消息发送者， 第二个：频道
+第三个：消息订阅者！
+
+![image-20200729144936899](https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200729144936899.png)
+
+下图展示了频道 channel1 ， 以及订阅这个频道的三个客户端 —— client2 、 client5 和 client1 之间的
+关系：
+
+![image-20200729145005717](https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200729145005717.png)
+
+当有新消息通过 PUBLISH 命令发送给频道 channel1 时， 这个消息就会被发送给订阅它的三个客户端。
+
+![image-20200729145015326](https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200729145015326.png)
+
+> 命令
+
+这些命令被广泛用于构建即时通信应用，比如网络聊天室(chatroom)和实时广播、实时提醒等。
+
+![image-20200729145342060](https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200729145342060.png)
+
+> 测试
+
+订阅端：（消费者）
+
+```bash
+127.0.0.1:6666> subscribe cxy #订阅一个频道
+Reading messages... (press Ctrl-C to quit)
+1) "subscribe"
+2) "cxy"
+3) (integer) 1
+# 等待读取推送的消息
+1) "message" # 消息
+2) "cxy" # 哪个频道
+3) "hello,cuixiaoyan" # 消息内容
+1) "message"
+2) "cxy"
+3) "hello,java"
+```
+
+发送端：（生产者）
+
+```bash
+127.0.0.1:6666> publish cxy "hello,cuixiaoyan" # 发布者发布消息到频道
+(integer) 1
+127.0.0.1:6666> publish cxy "hello,java"
+(integer) 1
+```
+
+> 原理
+
+Redis是使用C实现的，通过分析 Redis 源码里的 pubsub.c 文件，了解发布和订阅机制的底层实现，籍
+此加深对 Redis 的理解。
+
+Redis 通过 PUBLISH 、SUBSCRIBE 和 PSUBSCRIBE 等命令实现发布和订阅功能。
+微信：
+通过 SUBSCRIBE 命令订阅某频道后，redis-server 里维护了一个字典，字典的键就是一个个 频道！，
+而字典的值则是一个链表，链表中保存了所有订阅这个 channel 的客户端。SUBSCRIBE 命令的关键，
+就是将客户端添加到给定 channel 的订阅链表中。
+
+通过 PUBLISH 命令向订阅者发送消息，redis-server 会使用给定的频道作为键，在它所维护的 channel
+字典中查找记录了订阅这个频道的所有客户端的链表，遍历这个链表，将消息发布给所有订阅者。
+
+Pub/Sub 从字面上理解就是发布（Publish）与订阅（Subscribe），在Redis中，你可以设定对某一个
+key值进行消息发布及消息订阅，当一个key值上进行了消息发布后，所有订阅它的客户端都会收到相应
+的消息。这一功能最明显的用法就是用作实时消息系统，比如普通的即时聊天，群聊等功能。
+
+使用场景：
+1、实时消息系统！
+2、事实聊天！（频道当做聊天室，将信息回显给所有人即可！）
+3、订阅，关注系统都是可以的！
+稍微复杂的场景我们就会使用 消息中间件 MQ （）
+
+# Redis主从复制
+
+## 概念
+
+主从复制，是指将一台Redis服务器的数据，复制到其他的Redis服务器。前者称为主节点
+(master/leader)，后者称为从节点(slave/follower)；数据的复制是单向的，只能由主节点到从节点。
+Master以写为主，Slave 以读为主。
+
+默认情况下，每台Redis服务器都是主节点；
+且一个主节点可以有多个从节点(或没有从节点)，但一个从节点只能有一个主节点。（）
+
+**主从复制的作用主要包括：**
+
+1、数据冗余：主从复制实现了数据的热备份，是持久化之外的一种数据冗余方式。
+2、故障恢复：当主节点出现问题时，可以由从节点提供服务，实现快速的故障恢复；实际上是一种服务
+的冗余。
+3、负载均衡：在主从复制的基础上，配合读写分离，可以由主节点提供写服务，由从节点提供读服务
+（即写Redis数据时应用连接主节点，读Redis数据时应用连接从节点），分担服务器负载；尤其是在写
+少读多的场景下，通过多个从节点分担读负载，可以大大提高Redis服务器的并发量。
+4、高可用（集群）基石：除了上述作用以外，主从复制还是哨兵和集群能够实施的基础，因此说主从复
+制是Redis高可用的基础。
+
+一般来说，要将Redis运用于工程项目中，只使用一台Redis是万万不能的（宕机），原因如下：
+1、从结构上，单个Redis服务器会发生单点故障，并且一台服务器需要处理所有的请求负载，压力较大；
+2、从容量上，单个Redis服务器内存容量有限，就算一台Redis服务器内存容量为256G，也不能将所有内存用作Redis存储内存，一般来说，单台Redis最大使用内存不应该超过20G。
+电商网站上的商品，一般都是一次上传，无数次浏览的，说专业点也就是"多读少写"。
+
+主从复制，读写分离！ 80% 的情况下都是在进行读操作！减缓服务器的压力！架构中经常使用！
+一主二从！
+只要在公司中，主从复制就是必须要使用的，因为在真实的项目中不可能单机使用Redis！
+
+![image-20200729152111778](https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200729152111778.png)
+
+## 环境配置
+
+只配置从库，不用配置主库！
+
+```bash
+127.0.0.1:6666> info replication # 查看信息
+# Replication
+role:master # 主机
+connected_slaves:0 # 没有从机
+master_replid:357d2d5730c8f29b586b06dd76549fcb3d49c172
+master_replid2:0000000000000000000000000000000000000000
+master_repl_offset:0
+second_repl_offset:-1
+repl_backlog_active:0
+repl_backlog_size:1048576
+repl_backlog_first_byte_offset:0
+repl_backlog_histlen:0
+```
+
+复制三个配置文件，修改对应信息。
+
+![image-20200729153349164](https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200729153349164.png)
+
+1、端口
+2、pid 名字
+3、log文件名字
+4、dump.rdb 名字
+修改完毕之后，启动我们的3个redis服务器，可以通过进程信息查看。
+
+```bash
+# 普通方式
+port 6378
+pidfile /var/run/redis_6378.pid
+logfile "/dev/redis78.log"
+dbfilename dump6378.rdb
+# docker方式-----------------------------------------------------------------------------------------------
+# 创建属于redis的集群网络------------------------------------------------------------------------------------
+docker network create redis-cluster-net
+# 查看ip 172.18.0.0----------------------------------------------------------------------------------------
+[root@centos8 ~]# docker network inspect redis-cluster-net
+[
+    {
+        "Name": "redis-cluster-net",
+        "Id": "c3550af56a4c5a4894e04963b5b747361122e3666f58bd1e88e854f4b295f316",
+        "Created": "2020-07-29T04:42:39.479861603-04:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": {},
+            "Config": [
+                {
+                    "Subnet": "172.18.0.0/16",
+                    "Gateway": "172.18.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {
+            "2d6356126ef5b579a189af1e89e8b777cdb12f538a2e03bb8816e4308a20490f": {
+                "Name": "redis-7002",
+                "EndpointID": "183d44748f7586bc812b0a714678de09cc7b931b8f08fcc5d24bfb303a1893d3",
+                "MacAddress": "02:42:ac:12:00:04",
+                "IPv4Address": "172.18.0.4/16",
+                "IPv6Address": ""
+            },
+            "32525d24f5264aebe9bcabe20c5ae9456b4f9a9945d08e622fe65bb5818b513a": {
+                "Name": "redis-7000",
+                "EndpointID": "262490e1bd204de27db1c22128efacee6bff77e49aefae24df8c6fb8b76d0744",
+                "MacAddress": "02:42:ac:12:00:02",
+                "IPv4Address": "172.18.0.2/16",
+                "IPv6Address": ""
+            },
+            "50403e09aae463ff61a2a23621eb1d1b93b7fa40f0edb12b279d79fbba9eea4b": {
+                "Name": "redis-7001",
+                "EndpointID": "c10219728746f7e328d3528f56dcf011b0f8fbc42f628a05dd377146bb0d9d85",
+                "MacAddress": "02:42:ac:12:00:03",
+                "IPv4Address": "172.18.0.3/16",
+                "IPv6Address": ""
+            },
+            "637d28ddb99c7bf82fcfb222d0244918b43977a220e8f61caea264c4aa6e97ea": {
+                "Name": "redis-7003",
+                "EndpointID": "4b6ac8bdd02c91019b97989c78d411f966cce93f2833e799be1570f065720499",
+                "MacAddress": "02:42:ac:12:00:05",
+                "IPv4Address": "172.18.0.5/16",
+                "IPv6Address": ""
+            },
+            "b0eeb13258499f64a5d4308dbbbbef53747af9a185c01af78f1f0c597b299d99": {
+                "Name": "redis-7005",
+                "EndpointID": "53be06c5a30cb88848edd2e57b3c559b701d03a9aab541dd414d6ba38240a99f",
+                "MacAddress": "02:42:ac:12:00:07",
+                "IPv4Address": "172.18.0.7/16",
+                "IPv6Address": ""
+            },
+            "f954451e3775a9921566d6b91007ff196eeb385f4ee4e12a91bb14dda14dabed": {
+                "Name": "redis-7004",
+                "EndpointID": "da9bac581d4cc0586c11ecd2eaceb6408fe45f06b94abf99f85a31cc44c002ba",
+                "MacAddress": "02:42:ac:12:00:06",
+                "IPv4Address": "172.18.0.6/16",
+                "IPv6Address": ""
+            }
+        },
+        "Options": {},
+        "Labels": {}
+    }
+]
+# 编写模版文件名为：redis-cluster.tmpl ，路径放在 /usr/local/database/redis/redis-cluster ---------------------
+# 基本配置
+## 开放端口
+port ${port}
+## 不作为守护进程
+daemonize no
+## 启用aof持久化模式
+appendonly yes
+
+# 集群配置
+## 开启集群配置
+cluster-enabled yes
+## 存放集群节点的配置文件 系统自动建立
+cluster-config-file nodes-${port}.conf
+## 节点连接超时时间
+cluster-node-timeout 50000  
+## 实际为各节点网卡分配ip
+cluster-announce-ip ${ip}
+## 节点映射端口
+cluster-announce-port ${port}
+## 节点总线端口
+cluster-announce-bus-port 1${port}
+cluster-slave-validity-factor 10
+cluster-migration-barrier 1
+cluster-require-full-coverage yes
+
+# 创建配置脚本-----------------------------------------------------------------------------------------------
+
+# 主目录
+dir_redis_cluster='/usr/local/database/redis/redis-cluster'
+# docker redis集群网关
+gateway='172.18.0.1'
+# 节点地址号 从2开始
+idx=1
+# 逐个创建各节点目录和配置文件
+for port in `seq 7000 7005`; do
+    # 创建存放redis数据路径
+    mkdir -p ${dir_redis_cluster}/${port}/data;
+    # 通过模板个性化各个节点的配置文件
+    idx=$(($idx+1));
+    port=${port} ip=`echo ${gateway} | sed "s/1$/$idx/g"` \
+        envsubst < ${dir_redis_cluster}/redis-cluster.tmpl \
+        > ${dir_redis_cluster}/${port}/redis-${port}.conf
+done
+# 配置并启动-----------------------------------------------------------------------------------------------
+# 创建容器配置并运行 redis.conf后面你的版本，默认是最新。
+for port in `seq 7000 7005`; do
+    docker run --name redis-${port} --net redis-cluster-net -d \
+        -p ${port}:${port} -p 1${port}:1${port} \
+        -v ${dir_redis_cluster}/${port}/data:/data \
+        -v ${dir_redis_cluster}/${port}/redis-${port}.conf:/usr/local/etc/redis/redis.conf redis \
+        redis-server /usr/local/etc/redis/redis.conf
+done
+# 查看集群功能是否开启 info cluster--------------------------------------------------------------------------
+[root@centos8 ~]# docker exec -it redis-7000 redis-cli -p 7000 info cluster
+# Cluster
+cluster_enabled:1
+# 节点连接，一条条执行 --------------------------------------------------------------------------
+docker exec -it redis-7000 redis-cli -p 7000 cluster meet 172.18.0.3 7001
+docker exec -it redis-7000 redis-cli -p 7000 cluster meet 172.18.0.4 7002
+docker exec -it redis-7000 redis-cli -p 7000 cluster meet 172.18.0.5 7003
+docker exec -it redis-7000 redis-cli -p 7000 cluster meet 172.18.0.6 7004
+docker exec -it redis-7000 redis-cli -p 7000 cluster meet 172.18.0.7 7005
+# 进入7000执行 cluster nodes --------------------------------------------------------------------------
+127.0.0.1:7000> cluster nodes
+33cc63c86da4d85152990cf30534ced11b7abd73 172.18.0.2:7000@17000 myself,master - 0 1596013060000 1 connected
+5137b18fe4f3d975c1513f5761ffa8b9615ff077 172.18.0.3:7001@17001 master - 0 1596013059000 2 connected
+a61eab3d027b9ee4f521717cfba37b5ef8f19ad5 172.18.0.4:7002@17002 master - 0 1596013060598 3 connected
+f543363850c50bb90cd34694e4dc7235df4ea399 172.18.0.5:7003@17003 master - 0 1596013061613 0 connected
+955809a4a1a643719eafd3fc04f98ed9800cacb6 172.18.0.6:7004@17004 master - 0 1596013059587 4 connected
+10e55a0222db69b711e146ef134adb45725693c1 172.18.0.7:7005@17005 master - 0 1596013058000 5 connected
+# 设置主从节点，注意对应你自己的节点--------------------------------------------------------------------------
+# 设置7001节点为7000节点的从节点
+docker exec -it redis-7001 redis-cli -p 7001 cluster replicate 33cc63c86da4d85152990cf30534ced11b7abd73 # 7001 --> 7000
+# 设置7003节点为7002节点的从节点
+docker exec -it redis-7003 redis-cli -p 7003 cluster replicate a61eab3d027b9ee4f521717cfba37b5ef8f19ad5 # 7003 --> 7002
+# 设置7005节点为7004节点的从节点
+docker exec -it redis-7005 redis-cli -p 7005 cluster replicate 955809a4a1a643719eafd3fc04f98ed9800cacb6 # 7005 --> 7004
+# 将16384个槽分配到3个主节点去, 每个节点平均分的5461个槽---------------------------------------------------------
+# 7000 0~5460
+docker exec -it redis-7000 redis-cli -p 7000 cluster addslots {0..5460}
+# 7002 5461~10920
+docker exec -it redis-7002 redis-cli -p 7002 cluster addslots {5461..10920}
+# 7004 10920~16383
+docker exec -it redis-7004 redis-cli -p 7004 cluster addslots {10921..16383}
+# 测试------------------------------------------------------------------------------------------------------
+# cluster slots
+127.0.0.1:7000> cluster slots
+1) 1) (integer) 0
+   2) (integer) 5460
+   3) 1) "172.18.0.2"
+      2) (integer) 7000
+      3) "33cc63c86da4d85152990cf30534ced11b7abd73"
+   4) 1) "172.18.0.3"
+      2) (integer) 7001
+      3) "5137b18fe4f3d975c1513f5761ffa8b9615ff077"
+2) 1) (integer) 10921
+   2) (integer) 16383
+   3) 1) "172.18.0.6"
+      2) (integer) 7004
+      3) "955809a4a1a643719eafd3fc04f98ed9800cacb6"
+   4) 1) "172.18.0.7"
+      2) (integer) 7005
+      3) "10e55a0222db69b711e146ef134adb45725693c1"
+3) 1) (integer) 5461
+   2) (integer) 10920
+   3) 1) "172.18.0.4"
+      2) (integer) 7002
+      3) "a61eab3d027b9ee4f521717cfba37b5ef8f19ad5"
+   4) 1) "172.18.0.5"
+      2) (integer) 7003
+      3) "f543363850c50bb90cd34694e4dc7235df4ea399"
+
+# 其他操作(注意自己的路径)--------------------------------------------------------------------------
+#!/bin/bash
+# 外部输入命令
+com=$1
+# 主目录
+dir_redis_cluster='/usr/local/database/redis/redis-cluster'
+# redis集群网关
+gateway='172.18.0.1'
+
+case ${com} in
+	create)
+        idx=1;
+		for port in `seq 7000 7005`; do
+            # 创建存放redis数据路径
+			mkdir -p ${dir_redis_cluster}/${port}/data;
+            # 通过模板个性化各个节点的配置文件
+            idx=$(($idx+1));
+            port=${port} ip=`echo ${gateway} | sed "s/1$/$idx/g"` \
+                envsubst < ${dir_redis_cluster}/redis-cluster.tmpl \
+                > ${dir_redis_cluster}/${port}/redis-${port}.conf
+		done
+	;;
+    build)
+        # 创建容器配置并运行
+        for port in `seq 7000 7005`; do
+            docker run --name redis-${port} --net redis-cluster-net -d \
+            	-p ${port}:${port} -p 1${port}:1${port} \
+                -v ${dir_redis_cluster}/${port}/data:/data \
+                -v ${dir_redis_cluster}/${port}/redis-${port}.conf:/usr/local/etc/redis/redis.conf redis \
+                redis-server /usr/local/etc/redis/redis.conf
+        done
+    ;;
+    start | begin)
+        # 运行容器
+    	for port in `seq 7000 7005`; do
+            docker start redis-${port}
+        done
+    ;;
+    stop | end)
+        # 停止容器运行
+        for port in `seq 7000 7005`; do
+            docker stop redis-${port}
+        done
+    ;;
+    rm)
+        # 删除已有容器
+        for port in `seq 7000 7005`; do
+            docker rm redis-${port}
+        done
+    ;;
+    restart)
+        # 重启已有容器
+    	for port in `seq 7000 7005`; do
+            docker restart redis-${port}
+        done
+    ;;
+    destroy)
+        # 删除集群目录及配置
+        for port in `seq 7000 7005`; do
+            rm -rf ${dir_redis_cluster}/${port}
+        done
+    ;;
+    *)
+        echo "Usage:	./build [create|build|start|stop|rm|restart|destroy]"
+    ;;
+esac
+
+# 最终效果
+[root@centos8 ~]# docker exec -it redis-7000 redis-cli -c -p 7000
+127.0.0.1:7000> set name 1
+-> Redirected to slot [5798] located at 172.18.0.4:7002
+OK
+172.18.0.4:7002> keys *
+1) "name"
+172.18.0.4:7002> set age 18
+-> Redirected to slot [741] located at 172.18.0.2:7000
+OK
+```
+
+```java
+public class TestRedisConnect {
+    @Test
+    public void connectCluster() {
+        Set<HostAndPort> nodes = new HashSet<>();
+        nodes.add(new HostAndPort("127.0.0.1", 7000));
+        nodes.add(new HostAndPort("127.0.0.1", 7001));
+        nodes.add(new HostAndPort("127.0.0.1", 7002));
+        nodes.add(new HostAndPort("127.0.0.1", 7003));
+        nodes.add(new HostAndPort("127.0.0.1", 7004));
+        nodes.add(new HostAndPort("127.0.0.1", 7005));
+
+        JedisCluster cluster = new JedisCluster(nodes, 5000);
+
+        System.out.println(cluster.get("hello"));
+
+        cluster.set("test2", "6739");
+        System.out.println(cluster.get("test2"));
+
+        Map<String, String> inviteePhone = new HashMap<>(5);
+        inviteePhone.put("inviterID", "1001");
+        inviteePhone.put("status", "0");
+        // hash表 批处理
+        cluster.hmset("inviteePhone", inviteePhone);
+
+        System.out.println(cluster.hget("inviteePhone", "inviterID"));
+        System.out.println(cluster.hget("inviteePhone", "status"));
+    }
+}
+```
+
+
+
+## 一丛二主
+
+默认情况下，每台Redis服务器都是主节点； 我们一般情况下只用配置从机就好了！
+认老大！
+一主 （78）二从（79，80）
+
 
 
