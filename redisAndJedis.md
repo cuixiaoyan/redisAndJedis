@@ -845,7 +845,7 @@ Redis 的 Geo 在Redis3.2 版本就推出了！ 这个功能可以推算地理�
 
 > getadd
 
-## getadd 添加地理位置
+### getadd 添加地理位置
 
 - 规则：两级无法直接添加，我们一般会下载城市数据，直接通过java程序一次性导入！
 
@@ -2017,90 +2017,106 @@ docker network create redis-cluster-net
             "Network": ""
         },
         "ConfigOnly": false,
-        "Containers": {
-            "2d6356126ef5b579a189af1e89e8b777cdb12f538a2e03bb8816e4308a20490f": {
-                "Name": "redis-7002",
-                "EndpointID": "183d44748f7586bc812b0a714678de09cc7b931b8f08fcc5d24bfb303a1893d3",
-                "MacAddress": "02:42:ac:12:00:04",
-                "IPv4Address": "172.18.0.4/16",
-                "IPv6Address": ""
-            },
-            "32525d24f5264aebe9bcabe20c5ae9456b4f9a9945d08e622fe65bb5818b513a": {
-                "Name": "redis-7000",
-                "EndpointID": "262490e1bd204de27db1c22128efacee6bff77e49aefae24df8c6fb8b76d0744",
-                "MacAddress": "02:42:ac:12:00:02",
-                "IPv4Address": "172.18.0.2/16",
-                "IPv6Address": ""
-            },
-            "50403e09aae463ff61a2a23621eb1d1b93b7fa40f0edb12b279d79fbba9eea4b": {
-                "Name": "redis-7001",
-                "EndpointID": "c10219728746f7e328d3528f56dcf011b0f8fbc42f628a05dd377146bb0d9d85",
-                "MacAddress": "02:42:ac:12:00:03",
-                "IPv4Address": "172.18.0.3/16",
-                "IPv6Address": ""
-            },
-            "637d28ddb99c7bf82fcfb222d0244918b43977a220e8f61caea264c4aa6e97ea": {
-                "Name": "redis-7003",
-                "EndpointID": "4b6ac8bdd02c91019b97989c78d411f966cce93f2833e799be1570f065720499",
-                "MacAddress": "02:42:ac:12:00:05",
-                "IPv4Address": "172.18.0.5/16",
-                "IPv6Address": ""
-            },
-            "b0eeb13258499f64a5d4308dbbbbef53747af9a185c01af78f1f0c597b299d99": {
-                "Name": "redis-7005",
-                "EndpointID": "53be06c5a30cb88848edd2e57b3c559b701d03a9aab541dd414d6ba38240a99f",
-                "MacAddress": "02:42:ac:12:00:07",
-                "IPv4Address": "172.18.0.7/16",
-                "IPv6Address": ""
-            },
-            "f954451e3775a9921566d6b91007ff196eeb385f4ee4e12a91bb14dda14dabed": {
-                "Name": "redis-7004",
-                "EndpointID": "da9bac581d4cc0586c11ecd2eaceb6408fe45f06b94abf99f85a31cc44c002ba",
-                "MacAddress": "02:42:ac:12:00:06",
-                "IPv4Address": "172.18.0.6/16",
-                "IPv6Address": ""
-            }
-        },
+        "Containers": {},
         "Options": {},
         "Labels": {}
     }
 ]
 # 编写模版文件名为：redis-cluster.tmpl ，路径放在 /usr/local/database/redis/redis-cluster ---------------------
 # 基本配置
-## 开放端口
+protected-mode yes
 port ${port}
-## 不作为守护进程
+bind 0.0.0.0 
+tcp-backlog 511
+timeout 0
+tcp-keepalive 300
 daemonize no
-## 启用aof持久化模式
-appendonly yes
+supervised no
+pidfile /var/run/redis_${port}.pid
+loglevel notice
+logfile ""
+databases 16
+always-show-logo yes
+save 900 1
+save 300 10
+save 60 10000
+stop-writes-on-bgsave-error yes
+rdbcompression yes
+rdbchecksum yes
+dbfilename dump${port}.rdb
+rdb-del-sync-files no
+dir ./
+replica-serve-stale-data yes
+replica-read-only yes
+repl-diskless-sync no
+repl-diskless-sync-delay 5
+repl-disable-tcp-nodelay no
+replica-priority 100
+acllog-max-len 128
 
-# 集群配置
-## 开启集群配置
-cluster-enabled yes
-## 存放集群节点的配置文件 系统自动建立
-cluster-config-file nodes-${port}.conf
-## 节点连接超时时间
-cluster-node-timeout 50000  
-## 实际为各节点网卡分配ip
-cluster-announce-ip ${ip}
-## 节点映射端口
-cluster-announce-port ${port}
-## 节点总线端口
-cluster-announce-bus-port 1${port}
-cluster-slave-validity-factor 10
-cluster-migration-barrier 1
-cluster-require-full-coverage yes
+ # requirepass 
+lazyfree-lazy-eviction no
+lazyfree-lazy-expire no
+lazyfree-lazy-server-del no
+replica-lazy-flush no
+lazyfree-lazy-user-del no
+
+
+appendonly no
+
+appendfilename "appendonly.aof"
+
+appendfsync everysec
+
+
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+
+
+aof-load-truncated yes
+
+
+aof-use-rdb-preamble yes
+
+lua-time-limit 5000
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+latency-monitor-threshold 0
+notify-keyspace-events ""
+hash-max-ziplist-entries 512
+hash-max-ziplist-value 64
+
+
+list-max-ziplist-size -2
+
+
+list-compress-depth 0
+
+set-max-intset-entries 512
+
+zset-max-ziplist-entries 128
+zset-max-ziplist-value 64
+
+hll-sparse-max-bytes 3000
+
+stream-node-max-bytes 4096
+stream-node-max-entries 100
+
+activerehashing yes
+hz 10
+dynamic-hz yes
+
+
 
 # 创建配置脚本-----------------------------------------------------------------------------------------------
 
 # 主目录
 dir_redis_cluster='/usr/local/database/redis/redis-cluster'
-# docker redis集群网关
-gateway='172.18.0.1'
+# docker redis集群网关 gateway='172.18.0.1'
 # 节点地址号 从2开始
 idx=1
-# 逐个创建各节点目录和配置文件
-for port in `seq 7000 7005`; do
+# 逐个创建各节点目录和配置文件 三个
+for port in `seq 7000 7002`; do
     # 创建存放redis数据路径
     mkdir -p ${dir_redis_cluster}/${port}/data;
     # 通过模板个性化各个节点的配置文件
@@ -2111,73 +2127,17 @@ for port in `seq 7000 7005`; do
 done
 # 配置并启动-----------------------------------------------------------------------------------------------
 # 创建容器配置并运行 redis.conf后面你的版本，默认是最新。
-for port in `seq 7000 7005`; do
+for port in `seq 7000 7002`; do
     docker run --name redis-${port} --net redis-cluster-net -d \
         -p ${port}:${port} -p 1${port}:1${port} \
         -v ${dir_redis_cluster}/${port}/data:/data \
         -v ${dir_redis_cluster}/${port}/redis-${port}.conf:/usr/local/etc/redis/redis.conf redis \
         redis-server /usr/local/etc/redis/redis.conf
 done
-# 查看集群功能是否开启 info cluster--------------------------------------------------------------------------
+# 查看集群功能是否开启，这里需要让它不成功 info cluster-----------------------------------------------------------
 [root@centos8 ~]# docker exec -it redis-7000 redis-cli -p 7000 info cluster
 # Cluster
-cluster_enabled:1
-# 节点连接，一条条执行 --------------------------------------------------------------------------
-docker exec -it redis-7000 redis-cli -p 7000 cluster meet 172.18.0.3 7001
-docker exec -it redis-7000 redis-cli -p 7000 cluster meet 172.18.0.4 7002
-docker exec -it redis-7000 redis-cli -p 7000 cluster meet 172.18.0.5 7003
-docker exec -it redis-7000 redis-cli -p 7000 cluster meet 172.18.0.6 7004
-docker exec -it redis-7000 redis-cli -p 7000 cluster meet 172.18.0.7 7005
-# 进入7000执行 cluster nodes --------------------------------------------------------------------------
-127.0.0.1:7000> cluster nodes
-33cc63c86da4d85152990cf30534ced11b7abd73 172.18.0.2:7000@17000 myself,master - 0 1596013060000 1 connected
-5137b18fe4f3d975c1513f5761ffa8b9615ff077 172.18.0.3:7001@17001 master - 0 1596013059000 2 connected
-a61eab3d027b9ee4f521717cfba37b5ef8f19ad5 172.18.0.4:7002@17002 master - 0 1596013060598 3 connected
-f543363850c50bb90cd34694e4dc7235df4ea399 172.18.0.5:7003@17003 master - 0 1596013061613 0 connected
-955809a4a1a643719eafd3fc04f98ed9800cacb6 172.18.0.6:7004@17004 master - 0 1596013059587 4 connected
-10e55a0222db69b711e146ef134adb45725693c1 172.18.0.7:7005@17005 master - 0 1596013058000 5 connected
-# 设置主从节点，注意对应你自己的节点--------------------------------------------------------------------------
-# 设置7001节点为7000节点的从节点
-docker exec -it redis-7001 redis-cli -p 7001 cluster replicate 33cc63c86da4d85152990cf30534ced11b7abd73 # 7001 --> 7000
-# 设置7003节点为7002节点的从节点
-docker exec -it redis-7003 redis-cli -p 7003 cluster replicate a61eab3d027b9ee4f521717cfba37b5ef8f19ad5 # 7003 --> 7002
-# 设置7005节点为7004节点的从节点
-docker exec -it redis-7005 redis-cli -p 7005 cluster replicate 955809a4a1a643719eafd3fc04f98ed9800cacb6 # 7005 --> 7004
-# 将16384个槽分配到3个主节点去, 每个节点平均分的5461个槽---------------------------------------------------------
-# 7000 0~5460
-docker exec -it redis-7000 redis-cli -p 7000 cluster addslots {0..5460}
-# 7002 5461~10920
-docker exec -it redis-7002 redis-cli -p 7002 cluster addslots {5461..10920}
-# 7004 10920~16383
-docker exec -it redis-7004 redis-cli -p 7004 cluster addslots {10921..16383}
-# 测试------------------------------------------------------------------------------------------------------
-# cluster slots
-127.0.0.1:7000> cluster slots
-1) 1) (integer) 0
-   2) (integer) 5460
-   3) 1) "172.18.0.2"
-      2) (integer) 7000
-      3) "33cc63c86da4d85152990cf30534ced11b7abd73"
-   4) 1) "172.18.0.3"
-      2) (integer) 7001
-      3) "5137b18fe4f3d975c1513f5761ffa8b9615ff077"
-2) 1) (integer) 10921
-   2) (integer) 16383
-   3) 1) "172.18.0.6"
-      2) (integer) 7004
-      3) "955809a4a1a643719eafd3fc04f98ed9800cacb6"
-   4) 1) "172.18.0.7"
-      2) (integer) 7005
-      3) "10e55a0222db69b711e146ef134adb45725693c1"
-3) 1) (integer) 5461
-   2) (integer) 10920
-   3) 1) "172.18.0.4"
-      2) (integer) 7002
-      3) "a61eab3d027b9ee4f521717cfba37b5ef8f19ad5"
-   4) 1) "172.18.0.5"
-      2) (integer) 7003
-      3) "f543363850c50bb90cd34694e4dc7235df4ea399"
-
+cluster_enabled:0
 # 其他操作(注意自己的路径)--------------------------------------------------------------------------
 #!/bin/bash
 # 外部输入命令
@@ -2212,31 +2172,31 @@ case ${com} in
     ;;
     start | begin)
         # 运行容器
-    	for port in `seq 7000 7005`; do
+    	for port in `seq 7000 7002`; do
             docker start redis-${port}
         done
     ;;
     stop | end)
         # 停止容器运行
-        for port in `seq 7000 7005`; do
+        for port in `seq 7000 7002`; do
             docker stop redis-${port}
         done
     ;;
     rm)
         # 删除已有容器
-        for port in `seq 7000 7005`; do
+        for port in `seq 7000 7002`; do
             docker rm redis-${port}
         done
     ;;
     restart)
         # 重启已有容器
-    	for port in `seq 7000 7005`; do
+    	for port in `seq 7000 7002`; do
             docker restart redis-${port}
         done
     ;;
     destroy)
         # 删除集群目录及配置
-        for port in `seq 7000 7005`; do
+        for port in `seq 7000 7002`; do
             rm -rf ${dir_redis_cluster}/${port}
         done
     ;;
@@ -2245,56 +2205,318 @@ case ${com} in
     ;;
 esac
 
-# 最终效果
-[root@centos8 ~]# docker exec -it redis-7000 redis-cli -c -p 7000
-127.0.0.1:7000> set name 1
--> Redirected to slot [5798] located at 172.18.0.4:7002
-OK
-172.18.0.4:7002> keys *
-1) "name"
-172.18.0.4:7002> set age 18
--> Redirected to slot [741] located at 172.18.0.2:7000
-OK
 ```
-
-```java
-public class TestRedisConnect {
-    @Test
-    public void connectCluster() {
-        Set<HostAndPort> nodes = new HashSet<>();
-        nodes.add(new HostAndPort("127.0.0.1", 7000));
-        nodes.add(new HostAndPort("127.0.0.1", 7001));
-        nodes.add(new HostAndPort("127.0.0.1", 7002));
-        nodes.add(new HostAndPort("127.0.0.1", 7003));
-        nodes.add(new HostAndPort("127.0.0.1", 7004));
-        nodes.add(new HostAndPort("127.0.0.1", 7005));
-
-        JedisCluster cluster = new JedisCluster(nodes, 5000);
-
-        System.out.println(cluster.get("hello"));
-
-        cluster.set("test2", "6739");
-        System.out.println(cluster.get("test2"));
-
-        Map<String, String> inviteePhone = new HashMap<>(5);
-        inviteePhone.put("inviterID", "1001");
-        inviteePhone.put("status", "0");
-        // hash表 批处理
-        cluster.hmset("inviteePhone", inviteePhone);
-
-        System.out.println(cluster.hget("inviteePhone", "inviterID"));
-        System.out.println(cluster.hget("inviteePhone", "status"));
-    }
-}
-```
-
-
 
 ## 一丛二主
 
 默认情况下，每台Redis服务器都是主节点； 我们一般情况下只用配置从机就好了！
 认老大！
-一主 （78）二从（79，80）
+一主 （70）二从（71，72）启动三个容器。
+
+```bash
+[root@centos8 redis-cluster]# docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                                                        NAMES
+2157b7f9d97d        redis               "docker-entrypoint.s…"   5 seconds ago       Up 4 seconds        0.0.0.0:7002->7002/tcp, 6379/tcp, 0.0.0.0:17002->17002/tcp   redis-7002
+f1ac84714bf7        redis               "docker-entrypoint.s…"   6 seconds ago       Up 4 seconds        0.0.0.0:7001->7001/tcp, 6379/tcp, 0.0.0.0:17001->17001/tcp   redis-7001
+0db76b9cbe64        redis               "docker-entrypoint.s…"   6 seconds ago       Up 5 seconds        0.0.0.0:7000->7000/tcp, 6379/tcp, 0.0.0.0:17000->17000/tcp   redis-7000
+# 重点如下。-------------------------------------------------------------------------------------------------
+# 主机
+127.0.0.1:7000> info replication #查看主从信息
+# Replication
+role:master
+connected_slaves:2
+slave0:ip=172.18.0.1,port=7001,state=online,offset=392,lag=0
+slave1:ip=172.18.0.1,port=7002,state=online,offset=392,lag=1
+master_replid:e2c07eadf81344899ffd7cec60036686885c2947
+master_replid2:0000000000000000000000000000000000000000
+master_repl_offset:392
+second_repl_offset:-1
+repl_backlog_active:1
+repl_backlog_size:1048576
+repl_backlog_first_byte_offset:1
+repl_backlog_histlen:392
+# 从机，得用ip才行，我真是服了。就算是本机127也不行。
+[root@centos8 ~]# docker exec -it redis-7001 /bin/bash
+root@cb475fe3b9e0:/data# redis-cli -h 192.168.106.129 -p 7001
+192.168.106.129:7001> info replication
+# Replication
+role:master
+connected_slaves:0
+master_replid:868aadcb711e66461f5cd50b5ef59cf9cacbb26c
+master_replid2:0000000000000000000000000000000000000000
+master_repl_offset:0
+second_repl_offset:-1
+repl_backlog_active:0
+repl_backlog_size:1048576
+repl_backlog_first_byte_offset:0
+repl_backlog_histlen:0
+192.168.106.129:7001> SLAVEOF 192.168.106.129 7000 #设置为从机，二号机也是一样。
+OK
+192.168.106.129:7001> info replication 
+# Replication
+role:slave
+master_host:192.168.106.129
+master_port:7000
+master_link_status:up
+master_last_io_seconds_ago:3
+master_sync_in_progress:0
+slave_repl_offset:336
+slave_priority:100
+slave_read_only:1
+connected_slaves:0
+master_replid:e2c07eadf81344899ffd7cec60036686885c2947
+master_replid2:0000000000000000000000000000000000000000
+master_repl_offset:336
+second_repl_offset:-1
+repl_backlog_active:1
+repl_backlog_size:1048576
+repl_backlog_first_byte_offset:1
+repl_backlog_histlen:336
+```
+
+真实的从主配置应该在配置文件中配置，这样的话是永久的，我们这里使用的是命令，暂时的！
+
+> 操作
+
+主机可以写，从机不能写只能读！主机中的所有信息和数据，都会自动被从机保存！
+
+```bash
+# 主机可写可读
+127.0.0.1:7000> set name cuixiaoyan
+OK
+127.0.0.1:7000> get name
+"cuixiaoyan"
+# 从机只能读
+192.168.106.129:7001> get name
+"cuixiaoyan"
+192.168.106.129:7001> set age 18
+(error) READONLY You can't write against a read only replica.  
+```
+
+测试：主机断开连接，从机依旧连接到主机的，但是没有写操作，这个时候，主机如果回来了，从机依
+旧可以直接获取到主机写的信息！
+如果是使用命令行（如上），来配置的主从，这个时候如果重启了，就会变回主机！只要变为从机，立马就会从
+主机中获取值！
+
+- 先将7002从机停止，然后主机7000往里面放数据，从机7001获取没有问题，重新启动7002并进行连接主机也是可以获取全部的，尽管刚才它宕机了。就是下面的==增量复制==。
+- 主机7000如果宕机后，从机的绑定关系，依然还在。就只能提供查询操作，从机是不允许写操作的。
+- 这样就出问题了，我们需要在没有宕机的从机中，选出一个主机。使用 ==SLAVEOF no one== 让自己变成主机,让其他从机重新连接过来。
+- 如果这时候，之前的主机7000重新上线，就只能当做从机，去连接新的主机。==SLAVEOF== 192.168.106.129 7001
+
+> 复制原理
+
+Slave 启动成功连接到 master 后会发送一个sync同步命令
+Master 接到命令，启动后台的存盘进程，同时收集所有接收到的用于修改数据集命令，在后台进程执行
+完毕之后，master将传送整个数据文件到slave，并完成一次完全同步。
+全量复制：而slave服务在接收到数据库文件数据后，将其存盘并加载到内存中。
+增量复制：Master 继续将新的所有收集到的修改命令依次传给slave，完成同步
+但是只要是重新连接master，一次完全同步（全量复制）将被自动执行！ 我们的数据一定可以在从机中
+看到！
+
+# 哨兵模式
+
+## 自动选举模式。
+
+> 概述
+
+主从切换技术的方法是：当主服务器宕机后，需要手动把一台从服务器切换为主服务器，这就需要人工
+干预，费事费力，还会造成一段时间内服务不可用。这不是一种推荐的方式，更多时候，我们优先考虑
+哨兵模式。Redis从2.8开始正式提供了Sentinel（哨兵） 架构来解决这个问题。
+谋朝篡位的自动版，能够后台监控主机是否故障，如果故障了根据投票数自动将从库转换为主库。
+哨兵模式是一种特殊的模式，首先Redis提供了哨兵的命令，哨兵是一个独立的进程，作为进程，它会独
+立运行。其原理是哨兵通过发送命令，等待Redis服务器响应，从而监控运行的多个Redis实例。
+
+<img src="https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200730150337727.png" alt="image-20200730150337727" style="zoom:50%;" />
+
+这里的哨兵有两个作用
+通过发送命令，让Redis服务器返回监控其运行状态，包括主服务器和从服务器。
+当哨兵监测到master宕机，会自动将slave切换成master，然后通过发布订阅模式通知其他的从服
+务器，修改配置文件，让它们切换主机。
+然而一个哨兵进程对Redis服务器进行监控，可能会出现问题，为此，我们可以使用多个哨兵进行监控。
+各个哨兵之间还会进行监控，这样就形成了多哨兵模式。
+
+<img src="https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200730150905134.png" alt="image-20200730150905134" style="zoom:50%;" />
+
+假设主服务器宕机，哨兵1先检测到这个结果，系统并不会马上进行failover过程，仅仅是哨兵1主观的认
+为主服务器不可用，这个现象成为主观下线。当后面的哨兵也检测到主服务器不可用，并且数量达到一
+定值时，那么哨兵之间就会进行一次投票，投票的结果由一个哨兵发起，进行failover[故障转移]操作。
+切换成功后，就会通过发布订阅模式，让各个哨兵把自己监控的从服务器实现切换主机，这个过程称为
+客观下线。
+
+```bash
+# 配置文件挂载一下，最低配置，内容如下 /etc/redis/sentinel.conf
+sentinel monitor myredis 127.0.0.1 7000 1
+# 创建一个哨兵容器
+docker run --restart=always --log-driver json-file --log-opt max-size=100m --log-opt max-file=2 -p 7003:7003 --name redisSentinel -v /usr/local/database/redis/redis.conf:/etc/redis/redis.conf -v /usr/local/database/redis/redis-cluster/sentinel.conf:/etc/redis/sentinel.conf -d redis:6.0.5 redis-server /etc/redis/redis.conf --appendonly yes
+# 访问	redis-sentinel /etc/redis/sentinel.conf
+# 启动哨兵
+[root@centos8 redis-cluster]# docker exec -it 48f8725736c3 redis-sentinel /etc/redis/sentinel.conf
+```
 
 
+
+> 测试
+
+```bash
+16:X 30 Jul 2020 07:34:06.679 # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+16:X 30 Jul 2020 07:34:06.679 # Redis version=6.0.5, bits=64, commit=00000000, modified=0, pid=16, just started
+16:X 30 Jul 2020 07:34:06.679 # Configuration loaded
+                _._                                                  
+           _.-``__ ''-._                                             
+      _.-``    `.  `_.  ''-._           Redis 6.0.5 (00000000/0) 64 bit
+  .-`` .-```.  ```\/    _.,_ ''-._                                   
+ (    '      ,       .-`  | `,    )     Running in sentinel mode
+ |`-._`-...-` __...-.``-._|'` _.-'|     Port: 26379
+ |    `-._   `._    /     _.-'    |     PID: 16
+  `-._    `-._  `-./  _.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |           http://redis.io        
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+ |`-._`-._    `-.__.-'    _.-'_.-'|                                  
+ |    `-._`-._        _.-'_.-'    |                                  
+  `-._    `-._`-.__.-'_.-'    _.-'                                   
+      `-._    `-.__.-'    _.-'                                       
+          `-._        _.-'                                           
+              `-.__.-'                                               
+
+16:X 30 Jul 2020 07:34:06.680 # WARNING: The TCP backlog setting of 511 cannot be enforced because /proc/sys/net/core/somaxconn is set to the lower value of 128.
+16:X 30 Jul 2020 07:34:06.682 # Sentinel ID is 380b47be972cf1370e0852a1545c3490aaa9aefc
+16:X 30 Jul 2020 07:34:06.682 # +monitor master myredis 192.168.106.129 7000 quorum 1
+16:X 30 Jul 2020 07:34:06.723 * +slave slave 172.18.0.1:7001 172.18.0.1 7001 @ myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:34:06.726 * +slave slave 172.18.0.1:7002 172.18.0.1 7002 @ myredis 192.168.106.129 7000
+
+# 关掉主节点7000，这里选举7001为主节点。
+16:X 30 Jul 2020 07:42:24.339 # +sdown master myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:24.339 # +odown master myredis 192.168.106.129 7000 #quorum 1/1
+16:X 30 Jul 2020 07:42:24.339 # +new-epoch 1
+16:X 30 Jul 2020 07:42:24.339 # +try-failover master myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:24.345 # +vote-for-leader 380b47be972cf1370e0852a1545c3490aaa9aefc 1
+16:X 30 Jul 2020 07:42:24.345 # +elected-leader master myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:24.345 # +failover-state-select-slave master myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:24.430 # +selected-slave slave 172.18.0.1:7001 172.18.0.1 7001 @ myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:24.430 * +failover-state-send-slaveof-noone slave 172.18.0.1:7001 172.18.0.1 7001 @ myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:24.530 * +failover-state-wait-promotion slave 172.18.0.1:7001 172.18.0.1 7001 @ myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:24.757 # +promoted-slave slave 172.18.0.1:7001 172.18.0.1 7001 @ myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:24.757 # +failover-state-reconf-slaves master myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:24.847 * +slave-reconf-sent slave 172.18.0.1:7002 172.18.0.1 7002 @ myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:25.798 * +slave-reconf-inprog slave 172.18.0.1:7002 172.18.0.1 7002 @ myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:25.798 * +slave-reconf-done slave 172.18.0.1:7002 172.18.0.1 7002 @ myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:25.864 # +failover-end master myredis 192.168.106.129 7000
+16:X 30 Jul 2020 07:42:25.864 # +switch-master myredis 192.168.106.129 7000 172.18.0.1 7001
+16:X 30 Jul 2020 07:42:25.864 * +slave slave 172.18.0.1:7002 172.18.0.1 7002 @ myredis 172.18.0.1 7001
+16:X 30 Jul 2020 07:42:25.864 * +slave slave 192.168.106.129:7000 192.168.106.129 7000 @ myredis 172.18.0.1 7001
+16:X 30 Jul 2020 07:42:55.915 # +sdown slave 192.168.106.129:7000 192.168.106.129 7000 @ myredis 172.18.0.1 7001
+
+```
+
+如果主机此时回来了，只能归并到新的主机下，当做从机，这就是哨兵模式的规则！
+
+```bash
+16:X 30 Jul 2020 07:45:40.800 # -sdown slave 192.168.106.129:7000 192.168.106.129 7000 @ myredis 172.18.0.1 7001
+16:X 30 Jul 2020 07:45:50.732 * +convert-to-slave slave 192.168.106.129:7000 192.168.106.129 7000 @ myredis 172.18.0.1 7001
+16:X 30 Jul 2020 07:45:57.340 * +slave slave 172.18.0.1:7000 172.18.0.1 7000 @ myredis 172.18.0.1 7001
+# 查看7000的信息
+127.0.0.1:7000> info replication
+# Replication
+role:slave
+master_host:172.18.0.1
+master_port:7001
+master_link_status:up
+master_last_io_seconds_ago:2
+master_sync_in_progress:0
+slave_repl_offset:63952
+slave_priority:100
+slave_read_only:1
+connected_slaves:0
+master_replid:c2c821bdc9cfe49dcce55c91a97e656f77b6f9a5
+master_replid2:0000000000000000000000000000000000000000
+master_repl_offset:63952
+second_repl_offset:-1
+repl_backlog_active:1
+repl_backlog_size:1048576
+repl_backlog_first_byte_offset:60510
+repl_backlog_histlen:3443
+
+```
+
+优点：
+1、哨兵集群，基于主从复制模式，所有的主从配置优点，它全有
+2、 主从可以切换，故障可以转移，系统的可用性就会更好
+3、哨兵模式就是主从模式的升级，手动到自动，更加健壮！
+缺点：
+1、Redis 不好啊在线扩容的，集群容量一旦到达上限，在线扩容就十分麻烦！
+2、实现哨兵模式的配置其实是很麻烦的，里面有很多选择！
+
+>哨兵模式的全部配置！
+
+```bash
+# Example sentinel.conf
+# 哨兵sentinel实例运行的端口 默认26379
+port 26379
+# 哨兵sentinel的工作目录
+dir /tmp
+# 哨兵sentinel监控的redis主节点的 ip port
+# master-name 可以自己命名的主节点名字 只能由字母A-z、数字0-9 、组成。
+# quorum 配置多少个sentinel哨兵统一认为master主节点失联 那么这时客观上认为主节点失联了
+# sentinel monitor <master-name> <ip> <redis-port> <quorum>
+sentinel monitor mymaster 127.0.0.1 6379 2
+# 当在Redis实例中开启了requirepass foobared 授权密码 这样所有连接Redis实例的客户端都要提供
+密码
+# 设置哨兵sentinel 连接主从的密码 注意必须为主从设置一样的验证密码
+# sentinel auth-pass <master-name> <password>
+sentinel auth-pass mymaster MySUPER--secret-0123passw0rd
+# 指定多少毫秒之后 主节点没有应答哨兵sentinel 此时 哨兵主观上认为主节点下线 默认30秒
+# sentinel down-after-milliseconds <master-name> <milliseconds>
+sentinel down-after-milliseconds mymaster 30000
+# 这个配置项指定了在发生failover主备切换时最多可以有多少个slave同时对新的master进行 同步，
+这个数字越小，完成failover所需的时间就越长，
+但是如果这个数字越大，就意味着越 多的slave因为replication而不可用。
+可以通过将这个值设为 1 来保证每次只有一个slave 处于不能处理命令请求的状态。
+# sentinel parallel-syncs <master-name> <numslaves>
+sentinel parallel-syncs mymaster 1
+# 故障转移的超时时间 failover-timeout 可以用在以下这些方面：
+#1. 同一个sentinel对同一个master两次failover之间的间隔时间。
+#2. 当一个slave从一个错误的master那里同步数据开始计算时间。直到slave被纠正为向正确的master那
+里同步数据时。
+#3.当想要取消一个正在进行的failover所需要的时间。
+#4.当进行failover时，配置所有slaves指向新的master所需的最大时间。不过，即使过了这个超时，
+slaves依然会被正确配置为指向master，但是就不按parallel-syncs所配置的规则来了
+# 默认三分钟
+# sentinel failover-timeout <master-name> <milliseconds>
+sentinel failover-timeout mymaster 180000
+# SCRIPTS EXECUTION
+#配置当某一事件发生时所需要执行的脚本，可以通过脚本来通知管理员，例如当系统运行不正常时发邮件通知
+相关人员。
+#对于脚本的运行结果有以下规则：
+#若脚本执行后返回1，那么该脚本稍后将会被再次执行，重复次数目前默认为10
+#若脚本执行后返回2，或者比2更高的一个返回值，脚本将不会重复执行。
+#如果脚本在执行过程中由于收到系统中断信号被终止了，则同返回值为1时的行为相同。
+#一个脚本的最大执行时间为60s，如果超过这个时间，脚本将会被一个SIGKILL信号终止，之后重新执行。
+#通知型脚本:当sentinel有任何警告级别的事件发生时（比如说redis实例的主观失效和客观失效等等），
+将会去调用这个脚本，这时这个脚本应该通过邮件，SMS等方式去通知系统管理员关于系统不正常运行的信
+息。调用该脚本时，将传给脚本两个参数，
+一个是事件的类型，
+一个是事件的描述。如果sentinel.conf配
+置文件中配置了这个脚本路径，那么必须保证这个脚本存在于这个路径，并且是可执行的，否则sentinel无
+法正常启动成功。
+#通知脚本
+# shell编程
+# sentinel notification-script <master-name> <script-path>
+sentinel notification-script mymaster /var/redis/notify.sh
+# 客户端重新配置主节点参数脚本
+# 当一个master由于failover而发生改变时，这个脚本将会被调用，通知相关的客户端关于master地址已
+经发生改变的信息。
+# 以下参数将会在调用脚本时传给脚本:
+# <master-name> <role> <state> <from-ip> <from-port> <to-ip> <to-port>
+# 目前<state>总是“failover”
+,
+# <role>是“leader”或者“observer”中的一个。
+# 参数 from-ip, from-port, to-ip, to-port是用来和旧的master和新的master(即旧的slave)通
+信的
+# 这个脚本应该是通用的，能被多次调用，不是针对性的。
+# sentinel client-reconfig-script <master-name> <script-path>
+sentinel client-reconfig-script mymaster /var/redis/reconfig.sh # 一般都是由运维来配置
+```
+
+# redis缓存穿透和雪崩
 
