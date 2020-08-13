@@ -38,7 +38,7 @@ MySQL 的 集群，很好满足哪个年代的所有需求！
 
 2010--2020 十年之间，世界已经发生了翻天覆地的变化；（定位，也是一种数据，音乐，热榜！）
 MySQL 等关系型数据库就不够用了！数据量很多，变化很快~！
-MySQL 有的使用它来村粗一些比较大的文件，博客，图片！数据库表很大，效率就低了！如果有一种数
+MySQL 有的使用它来存储一些比较大的文件，博客，图片！数据库表很大，效率就低了！如果有一种数
 据库来专门处理这种数据,
 MySQL压力就变得十分小（研究如何处理这些问题！）大数据的IO压力下，表几乎没法更大！
 
@@ -256,7 +256,6 @@ Redis 为什么单线程还这么快？
 ![image-20200723154920895](https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200723154920895.png)
 
 >后面我们使用SpringBoot。Jedis，所有的方法，就是这些命令！
->单点登录
 
 ## Redis-key
 
@@ -297,7 +296,7 @@ OK
 (integer) -2
 127.0.0.1:6666> get name
 (nil)
-127.0.0.1:6666> type age # 查看key的类型
+127.0.0.1:6666> type age # 通过key查看类型
 string
 ```
 
@@ -3282,7 +3281,227 @@ Redis 集群有16384 个哈希槽，每个 key 通过 CRC16 校验后对 16384 �
 - 节点的 fail 是通过集群中超过半数的节点检测失效时才生效。
 - 客户端与 Redis 节点直连，不需要中间代理层.客户端不需要连接集群所有节点，连接集群中任何一个可用节点即可。
 
+# 分布式锁
 
+　　运行效果如下图所示。从图中可以看出，同一个资源在同一个时刻只能被一个线程获取，从而保证了库存数量N的递减是顺序的。
+
+![image-20200813171442211](https://gitee.com/cuixiaoyan/uPic/raw/master/uPic/image-20200813171442211.png)
+
+## 接口
+
+```java
+package com.cxy.redis.distributed;
+
+/**
+ * @program: redis
+ * @description: 分布式锁，接口。
+ * @author: cuixy
+ * @create: 2020-08-13 16:23
+ **/
+public interface DistributedLock {
+
+    //锁标示
+    String acquire();
+
+    //释放锁
+    boolean release(String indentifier);
+
+}
+```
+
+
+
+## 实现类
+
+```java
+package com.cxy.redis.distributed;
+
+import lombok.extern.slf4j.Slf4j;
+import redis.clients.jedis.Jedis;
+
+import java.util.Collections;
+import java.util.UUID;
+
+/**
+ * @program: redis
+ * @description: 分布式锁，实现类。
+ * @author: cuixy
+ * @create: 2020-08-13 16:28
+ **/
+@Slf4j
+public class RedisDistributedLock implements DistributedLock {
+
+    private static final String LOCK_SUCCESS = "OK";
+    private static final Long RELEASE_SUCCESS = 1L;
+    private static final String SET_IF_NOT_EXIST = "NX";
+    private static final String SET_WITH_EXPIRE_TIME = "PX";
+
+
+    /**
+     * redis 客户端
+     */
+    private Jedis jedis;
+
+    /**
+     * 分布式锁的键值
+     */
+    private String lockKey;
+
+    /**
+     * 锁的超时时间 10s
+     */
+    int expireTime = 10 * 1000;
+
+    /**
+     * 锁等待，防止线程饥饿
+     */
+    int acquireTimeout = 1 * 1000;
+
+    /**
+     * 获取指定键值的锁
+     *
+     * @param jedis   jedis Redis客户端
+     * @param lockKey 锁的键值
+     */
+    public RedisDistributedLock(Jedis jedis, String lockKey) {
+        this.jedis = jedis;
+        this.lockKey = lockKey;
+    }
+
+    /**
+     * 获取指定键值的锁,同时设置获取锁超时时间
+     *
+     * @param jedis          jedis Redis客户端
+     * @param lockKey        锁的键值
+     * @param acquireTimeout 获取锁超时时间
+     */
+    public RedisDistributedLock(Jedis jedis, String lockKey, int acquireTimeout) {
+        this.jedis = jedis;
+        this.lockKey = lockKey;
+        this.acquireTimeout = acquireTimeout;
+    }
+
+    /**
+     * 获取指定键值的锁,同时设置获取锁超时时间和锁过期时间
+     *
+     * @param jedis          jedis Redis客户端
+     * @param lockKey        锁的键值
+     * @param acquireTimeout 获取锁超时时间
+     * @param expireTime     锁失效时间
+     */
+    public RedisDistributedLock(Jedis jedis, String lockKey, int acquireTimeout, int expireTime) {
+        this.jedis = jedis;
+        this.lockKey = lockKey;
+        this.acquireTimeout = acquireTimeout;
+        this.expireTime = expireTime;
+    }
+
+
+    @Override
+    public String acquire() {
+        try {
+            //获取锁的超时时间，超过这个时间则放弃获取锁。
+            long end = System.currentTimeMillis() + acquireTimeout;
+            //随机生成一个value
+            String requireToken = UUID.randomUUID().toString();
+            while (System.currentTimeMillis() < end) {
+                String result = jedis.set(lockKey, requireToken, SET_IF_NOT_EXIST, SET_WITH_EXPIRE_TIME, expireTime);
+                if (LOCK_SUCCESS.equals(result)) {
+                    return requireToken;
+                }
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+
+        } catch (Exception e) {
+
+        }
+
+        return null;
+    }
+
+    @Override
+    public boolean release(String identify) {
+        if (identify == null) {
+            return false;
+        }
+
+        String script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+        Object result = new Object();
+        try {
+            result = jedis.eval(script, Collections.singletonList(lockKey),
+                    Collections.singletonList(identify));
+            if (RELEASE_SUCCESS.equals(result)) {
+                log.info("release lock success, requestToken:{}", identify);
+                return true;
+            }
+        } catch (Exception e) {
+            log.error("release lock due to error", e);
+        } finally {
+            if (jedis != null) {
+                jedis.close();
+            }
+        }
+
+        log.info("release lock failed, requestToken:{}, result:{}", identify, result);
+        return false;
+    }
+
+}
+```
+
+## 测试类
+
+```java
+package com.cxy.redis.distributed;
+
+import redis.clients.jedis.Jedis;
+
+/**
+ * @program: redis
+ * @description: 分布式锁测试类。
+ * @author: cuixy
+ * @create: 2020-08-13 17:01
+ **/
+public class RedisDistributedLockTest {
+
+    static int n = 500;
+
+    public static void secskill() {
+        System.out.println(--n);
+    }
+
+    public static void main(String[] args) {
+
+        for (int i = 0; i < 10; i++) {
+            new Thread(() -> {
+                RedisDistributedLock lock = null;
+                String unLockIdentify = null;
+                try {
+                    Jedis conn = new Jedis("192.168.106.129", 6666);
+                    //如果没有密码，就可以省略下面步骤。
+                    conn.auth("cxy0809.");
+
+                    lock = new RedisDistributedLock(conn, "test1");
+                    unLockIdentify = lock.acquire();
+                    System.out.println(Thread.currentThread().getName() + "正在运行");
+                    secskill();
+                } finally {
+                    if (lock != null) {
+                        lock.release(unLockIdentify);
+                    }
+                }
+            }).start();
+        }
+
+
+    }
+
+}
+```
 
 
 
