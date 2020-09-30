@@ -1482,7 +1482,7 @@ class RedisApplicationTests {
     }
 ```
 
- # springboot整合
+# springboot整合
 
 SpringBoot 操作数据：spring-data jpa jdbc mongodb redis！
 SpringData 也是和 SpringBoot 齐名的项目！
